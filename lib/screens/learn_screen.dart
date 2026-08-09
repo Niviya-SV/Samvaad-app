@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'lesson_screen.dart';
 class LearnScreen extends StatefulWidget {
   const LearnScreen({super.key});
 
@@ -857,8 +857,11 @@ class _LearnScreenState extends State<LearnScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => LessonPlaceholderScreen(
-          chapter: chapter,
+        builder: (_) => LessonScreen(
+          chapterTitle: chapter.title,
+          chapterSubtitle: chapter.subtitle,
+          chapterNumber: chapter.number,
+          xp: chapter.xp,
         ),
       ),
     );
@@ -921,158 +924,4 @@ class Chapter {
     required this.unlocked,
     required this.completed,
   });
-}
-
-// ============================================================
-// TEMPORARY LESSON SCREEN
-// ============================================================
-// This is only a placeholder so that tapping a chapter works.
-// Later we will replace this with your real ISL lesson screen.
-
-class LessonPlaceholderScreen extends StatelessWidget {
-  final Chapter chapter;
-
-  const LessonPlaceholderScreen({
-    super.key,
-    required this.chapter,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFFFBF5),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(
-            Icons.arrow_back_rounded,
-            color: Color(0xFF29263D),
-          ),
-        ),
-        title: Text(
-          chapter.title,
-          style: const TextStyle(
-            color: Color(0xFF29263D),
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const SizedBox(height: 30),
-
-            Container(
-              width: 130,
-              height: 130,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8E4F7),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.front_hand_rounded,
-                size: 65,
-                color: Color(0xFF6C63A8),
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            Text(
-              chapter.title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF29263D),
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            Text(
-              chapter.subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 16,
-                color: Color(0xFF777281),
-              ),
-            ),
-
-            const SizedBox(height: 35),
-
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: const Color(0xFFE7E2EC),
-                ),
-              ),
-              child: const Column(
-                children: [
-                  Icon(
-                    Icons.play_circle_fill_rounded,
-                    size: 55,
-                    color: Color(0xFF6C63A8),
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    'Your ISL lesson will appear here.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF29263D),
-                    ),
-                  ),
-                  SizedBox(height: 5),
-                  Text(
-                    'The AI instructor and sign-learning content will be connected in the next phase.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.4,
-                      color: Color(0xFF817C89),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const Spacer(),
-
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: FilledButton(
-                onPressed: () {},
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF6C63A8),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(17),
-                  ),
-                ),
-                child: const Text(
-                  'Start Lesson',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
 }

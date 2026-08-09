@@ -172,13 +172,11 @@ class _HomeScreenState extends State<HomeScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const PracticeScreen(),
+        builder: (_) => const PracticeScreen(
+          chapterTitle: 'Greetings',
+        ),
       ),
     );
-
-    if (!mounted) return;
-
-    await _loadLearnerData();
   }
 
   // ============================================================
