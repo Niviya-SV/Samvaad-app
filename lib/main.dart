@@ -4,6 +4,8 @@ import 'screens/welcome_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
   runApp(const SamvaadApp());
 }
 
@@ -15,7 +17,9 @@ class SamvaadApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Samvaad',
+
       theme: AppTheme.lightTheme,
+
       home: const WelcomeScreen(),
     );
   }

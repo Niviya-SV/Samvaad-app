@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'register_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -38,8 +39,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         currentPage++;
       });
     } else {
-      // Home screen will be connected here later.
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const RegisterScreen(),
+        ),
+      );
     }
+  }
+
+  void skipOnboarding() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const RegisterScreen(),
+      ),
+    );
   }
 
   @override
@@ -51,7 +66,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Top bar
+            // ─────────────────────────────────────────
+            // TOP BAR
+            // ─────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 20,
@@ -68,18 +85,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         currentPage--;
                       });
                     },
-                    icon: const Icon(Icons.arrow_back_rounded),
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                    ),
                     color: AppTheme.darkText,
                   ),
+
                   TextButton(
-                    onPressed: () {
-                      // Skip will be connected to Home later.
-                    },
+                    onPressed: skipOnboarding,
                     child: const Text(
                       'Skip',
                       style: TextStyle(
                         color: AppTheme.primary,
                         fontWeight: FontWeight.w600,
+                        fontSize: 15,
                       ),
                     ),
                   ),
@@ -87,41 +106,55 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
 
-            // Main content
+            // ─────────────────────────────────────────
+            // MAIN CONTENT
+            // ─────────────────────────────────────────
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                ),
                 child: Column(
                   children: [
                     const Spacer(),
 
-                    // Illustration placeholder
-                    Container(
-                      width: 250,
-                      height: 250,
-                      decoration: BoxDecoration(
-                        color: AppTheme.lightPrimary,
-                        borderRadius: BorderRadius.circular(40),
+                    // ─────────────────────────────────
+                    // ILLUSTRATION
+                    // ─────────────────────────────────
+                    AnimatedSwitcher(
+                      duration: const Duration(
+                        milliseconds: 300,
                       ),
-                      child: Center(
-                        child: Container(
-                          width: 130,
-                          height: 130,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 25,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            page.icon,
-                            size: 70,
-                            color: AppTheme.primary,
+                      child: Container(
+                        key: ValueKey(currentPage),
+                        width: 250,
+                        height: 250,
+                        decoration: BoxDecoration(
+                          color: AppTheme.lightPrimary,
+                          borderRadius: BorderRadius.circular(40),
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 130,
+                            height: 130,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(
+                                    alpha: 0.08,
+                                  ),
+                                  blurRadius: 25,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              page.icon,
+                              size: 70,
+                              color: AppTheme.primary,
+                            ),
                           ),
                         ),
                       ),
@@ -129,48 +162,83 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                     const SizedBox(height: 42),
 
-                    Text(
-                      page.title,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 27,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.darkText,
+                    // ─────────────────────────────────
+                    // TITLE
+                    // ─────────────────────────────────
+                    AnimatedSwitcher(
+                      duration: const Duration(
+                        milliseconds: 250,
+                      ),
+                      child: Text(
+                        page.title,
+                        key: ValueKey(
+                          '${currentPage}_title',
+                        ),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 27,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.darkText,
+                          height: 1.2,
+                        ),
                       ),
                     ),
 
                     const SizedBox(height: 16),
 
-                    Text(
-                      page.description,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        height: 1.5,
-                        color: AppTheme.secondaryText,
+                    // ─────────────────────────────────
+                    // DESCRIPTION
+                    // ─────────────────────────────────
+                    AnimatedSwitcher(
+                      duration: const Duration(
+                        milliseconds: 250,
+                      ),
+                      child: Text(
+                        page.description,
+                        key: ValueKey(
+                          '${currentPage}_description',
+                        ),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          height: 1.5,
+                          color: AppTheme.secondaryText,
+                        ),
                       ),
                     ),
 
                     const Spacer(),
 
-                    // Page indicators
+                    // ─────────────────────────────────
+                    // PAGE INDICATORS
+                    // ─────────────────────────────────
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment:
+                      MainAxisAlignment.center,
                       children: List.generate(
                         pages.length,
                             (index) {
-                          final isActive = index == currentPage;
+                          final isActive =
+                              index == currentPage;
 
                           return AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            duration: const Duration(
+                              milliseconds: 250,
+                            ),
+                            margin:
+                            const EdgeInsets.symmetric(
+                              horizontal: 4,
+                            ),
                             width: isActive ? 24 : 8,
                             height: 8,
                             decoration: BoxDecoration(
                               color: isActive
                                   ? AppTheme.primary
-                                  : const Color(0xFFD9D5E8),
-                              borderRadius: BorderRadius.circular(10),
+                                  : const Color(
+                                0xFFD9D5E8,
+                              ),
+                              borderRadius:
+                              BorderRadius.circular(10),
                             ),
                           );
                         },
@@ -179,21 +247,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                     const SizedBox(height: 28),
 
-                    // Next button
+                    // ─────────────────────────────────
+                    // NEXT / CONTINUE BUTTON
+                    // ─────────────────────────────────
                     SizedBox(
                       width: double.infinity,
                       height: 56,
                       child: FilledButton(
                         onPressed: nextPage,
                         style: FilledButton.styleFrom(
-                          backgroundColor: AppTheme.primary,
+                          backgroundColor:
+                          AppTheme.primary,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius:
+                            BorderRadius.circular(18),
                           ),
                         ),
                         child: Text(
-                          currentPage == pages.length - 1
+                          currentPage ==
+                              pages.length - 1
                               ? 'Continue'
                               : 'Next',
                           style: const TextStyle(
@@ -215,6 +288,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 }
+
+// ─────────────────────────────────────────────
+// ONBOARDING DATA
+// ─────────────────────────────────────────────
 
 class OnboardingData {
   final String title;
