@@ -2,8 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppStorage {
-  static final SharedPreferencesAsync _prefs =
-  SharedPreferencesAsync();
+  static final SharedPreferencesAsync _prefs = SharedPreferencesAsync();
 
   // ============================================================
   // PROFILE
@@ -60,8 +59,7 @@ class AppStorage {
   // NOTIFICATIONS
   // ============================================================
 
-  static const String _notificationsKey =
-      'notifications_enabled';
+  static const String _notificationsKey = 'notifications_enabled';
 
   static final ValueNotifier<bool> notificationsNotifier =
   ValueNotifier<bool>(true);
@@ -122,8 +120,6 @@ class AppStorage {
 
   static Future<void> saveLargeText(bool value) async {
     await _prefs.setBool(_largeTextKey, value);
-
-    // Immediately update the application.
     largeTextNotifier.value = value;
   }
 
@@ -142,8 +138,6 @@ class AppStorage {
 
   static Future<void> saveHighContrast(bool value) async {
     await _prefs.setBool(_highContrastKey, value);
-
-    // Immediately update the application.
     highContrastNotifier.value = value;
   }
 
@@ -162,8 +156,6 @@ class AppStorage {
 
   static Future<void> saveReducedMotion(bool value) async {
     await _prefs.setBool(_reducedMotionKey, value);
-
-    // Immediately update the application.
     reducedMotionNotifier.value = value;
   }
 
@@ -172,11 +164,10 @@ class AppStorage {
   }
 
   // ============================================================
-  // PRIVACY / ANALYTICS
+  // ANALYTICS
   // ============================================================
 
-  static const String _analyticsKey =
-      'analytics_enabled';
+  static const String _analyticsKey = 'analytics_enabled';
 
   static final ValueNotifier<bool> analyticsNotifier =
   ValueNotifier<bool>(true);
@@ -191,7 +182,172 @@ class AppStorage {
   }
 
   // ============================================================
-  // LOAD ALL SETTINGS
+  // LEARNING PROGRESS
+  // ============================================================
+
+  static String _chapterKey(
+      String level,
+      int chapterNumber,
+      ) {
+    return 'learning_${level}_$chapterNumber';
+  }
+
+  static String _chapterProgressKey(
+      String level,
+      int chapterNumber,
+      ) {
+    return '${_chapterKey(level, chapterNumber)}_progress';
+  }
+
+  // ------------------------------------------------------------
+  // SAVE CHAPTER COMPLETED
+  // ------------------------------------------------------------
+
+  static Future<void> saveChapterCompleted(
+      String level,
+      int chapterNumber,
+      ) async {
+    await _prefs.setBool(
+      _chapterKey(level, chapterNumber),
+      true,
+    );
+
+    await saveChapterProgress(
+      level,
+      chapterNumber,
+      1.0,
+    );
+  }
+
+  // ------------------------------------------------------------
+  // CHECK CHAPTER COMPLETED
+  // ------------------------------------------------------------
+
+  static Future<bool> isChapterCompleted(
+      String level,
+      int chapterNumber,
+      ) async {
+    return await _prefs.getBool(
+      _chapterKey(level, chapterNumber),
+    ) ??
+        false;
+  }
+
+  // ------------------------------------------------------------
+  // SAVE CHAPTER PROGRESS
+  // ------------------------------------------------------------
+
+  static Future<void> saveChapterProgress(
+      String level,
+      int chapterNumber,
+      double progress,
+      ) async {
+    final safeProgress = progress.clamp(0.0, 1.0);
+
+    await _prefs.setDouble(
+      _chapterProgressKey(level, chapterNumber),
+      safeProgress,
+    );
+  }
+
+  // ------------------------------------------------------------
+  // GET CHAPTER PROGRESS
+  // ------------------------------------------------------------
+
+  static Future<double> getChapterProgress(
+      String level,
+      int chapterNumber,
+      ) async {
+    return await _prefs.getDouble(
+      _chapterProgressKey(level, chapterNumber),
+    ) ??
+        0.0;
+  }
+
+  // ------------------------------------------------------------
+  // GET CHAPTER STATE
+  // ------------------------------------------------------------
+
+  static Future<Map<String, dynamic>> getChapterState(
+      String level,
+      int chapterNumber,
+      ) async {
+    final completed = await isChapterCompleted(
+      level,
+      chapterNumber,
+    );
+
+    final progress = await getChapterProgress(
+      level,
+      chapterNumber,
+    );
+
+    return {
+      'completed': completed,
+      'progress': progress,
+    };
+  }
+
+  // ------------------------------------------------------------
+  // CHECK IF CHAPTER IS UNLOCKED
+  //
+  // Chapter 1 is always unlocked.
+  // Every later chapter requires the previous chapter.
+  // ------------------------------------------------------------
+
+  static Future<bool> isChapterUnlocked(
+      String level,
+      int chapterNumber,
+      ) async {
+    if (chapterNumber <= 1) {
+      return true;
+    }
+
+    return await isChapterCompleted(
+      level,
+      chapterNumber - 1,
+    );
+  }
+
+  // ------------------------------------------------------------
+  // GET ALL CHAPTER STATES
+  // ------------------------------------------------------------
+
+  static Future<List<Map<String, dynamic>>> getLevelProgress(
+      String level,
+      int chapterCount,
+      ) async {
+    final result = <Map<String, dynamic>>[];
+
+    for (int i = 1; i <= chapterCount; i++) {
+      final completed = await isChapterCompleted(
+        level,
+        i,
+      );
+
+      final progress = await getChapterProgress(
+        level,
+        i,
+      );
+
+      final unlocked = await isChapterUnlocked(
+        level,
+        i,
+      );
+
+      result.add({
+        'chapter': i,
+        'completed': completed,
+        'progress': progress,
+        'unlocked': unlocked,
+      });
+    }
+
+    return result;
+  }
+
+  // ============================================================
+  // LOAD SETTINGS
   // ============================================================
 
   static Future<void> loadAllSettings() async {
@@ -218,7 +374,34 @@ class AppStorage {
   }
 
   // ============================================================
-  // CLEAR LOCAL DATA
+  // RESET LEARNING PROGRESS
+  // ============================================================
+
+  static Future<void> clearLearningProgress() async {
+    const levels = {
+      'Beginner': 6,
+      'Intermediate': 5,
+      'Advanced': 4,
+    };
+
+    for (final entry in levels.entries) {
+      final level = entry.key;
+      final chapterCount = entry.value;
+
+      for (int i = 1; i <= chapterCount; i++) {
+        await _prefs.remove(
+          _chapterKey(level, i),
+        );
+
+        await _prefs.remove(
+          _chapterProgressKey(level, i),
+        );
+      }
+    }
+  }
+
+  // ============================================================
+  // CLEAR ALL LOCAL DATA
   // ============================================================
 
   static Future<void> clearLocalData() async {

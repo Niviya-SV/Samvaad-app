@@ -17,9 +17,7 @@ class SamvaadApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Samvaad',
-
       theme: AppTheme.lightTheme,
-
       home: const WelcomeScreen(),
     );
   }

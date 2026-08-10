@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../services/app_storage.dart';
-import '../services/app_localization.dart';
 
 import 'learn_screen.dart';
 import 'practice_screen.dart';
@@ -72,22 +71,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
 
     setState(() {
-      _name = name.isNotEmpty
-          ? name
-          : (widget.learnerName ?? '');
-
-      _email = email.isNotEmpty
-          ? email
-          : (widget.email ?? '');
-
-      _goal = goal.isNotEmpty
-          ? goal
-          : (widget.goal ?? '');
-
-      _level = level.isNotEmpty
-          ? level
-          : (widget.level ?? '');
-
+      _name = name.isNotEmpty ? name : (widget.learnerName ?? '');
+      _email = email.isNotEmpty ? email : (widget.email ?? '');
+      _goal = goal.isNotEmpty ? goal : (widget.goal ?? '');
+      _level = level.isNotEmpty ? level : (widget.level ?? '');
       _isLoading = false;
     });
   }
@@ -177,6 +164,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+
+    if (!mounted) return;
+
+    await _loadLearnerData();
   }
 
   // ============================================================
@@ -187,7 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final value = _name.trim();
 
     if (value.isEmpty) {
-      return AppLocalization.t('learner');
+      return 'Learner';
     }
 
     return value;
@@ -197,7 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final value = _displayName.trim();
 
     if (value.isEmpty) {
-      return AppLocalization.t('learner');
+      return 'Learner';
     }
 
     return value.split(' ').first;
@@ -209,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String get _displayGoal {
     if (_goal.trim().isEmpty) {
-      return AppLocalization.t('build_isl');
+      return 'Build your ISL skills';
     }
 
     return _goal.trim();
@@ -244,21 +235,14 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // IMPORTANT:
-    // This listens to language changes.
-    return ValueListenableBuilder<String>(
-      valueListenable: AppLocalization.languageNotifier,
-      builder: (context, language, child) {
-        return _buildHome(language);
-      },
-    );
+    return _buildHome();
   }
 
   // ============================================================
   // HOME UI
   // ============================================================
 
-  Widget _buildHome(String language) {
+  Widget _buildHome() {
     return Scaffold(
       backgroundColor: background,
 
@@ -272,33 +256,19 @@ class _HomeScreenState extends State<HomeScreen> {
         surfaceTintColor: Colors.transparent,
         automaticallyImplyLeading: false,
 
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'SAMVAAD',
-              style: TextStyle(
-                color: primary,
-                fontSize: 21,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.4,
-              ),
-            ),
-
-            Text(
-              language,
-              style: const TextStyle(
-                color: secondaryText,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+        title: const Text(
+          'SAMVAAD',
+          style: TextStyle(
+            color: primary,
+            fontSize: 21,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.4,
+          ),
         ),
 
         actions: [
           IconButton(
-            tooltip: AppLocalization.t('notifications'),
+            tooltip: 'Notifications',
             onPressed: _openNotifications,
             icon: const Icon(
               Icons.notifications_none_rounded,
@@ -308,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
 
           IconButton(
-            tooltip: AppLocalization.t('settings'),
+            tooltip: 'Settings',
             onPressed: _openSettings,
             icon: const Icon(
               Icons.settings_outlined,
@@ -355,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${AppLocalization.t('hello')}, $_firstName 👋',
+                          'Hello, $_firstName 👋',
                           style: const TextStyle(
                             fontSize: 27,
                             fontWeight: FontWeight.w900,
@@ -365,9 +335,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
                         const SizedBox(height: 6),
 
-                        Text(
-                          AppLocalization.t('ready_to_learn'),
-                          style: const TextStyle(
+                        const Text(
+                          'Ready to continue your learning journey?',
+                          style: TextStyle(
                             fontSize: 14,
                             color: secondaryText,
                             height: 1.4,
@@ -419,8 +389,8 @@ class _HomeScreenState extends State<HomeScreen> {
               // ==================================================
 
               _sectionTitle(
-                AppLocalization.t('continue_learning'),
-                AppLocalization.t('view_all'),
+                'Continue Learning',
+                'View All',
                 _openLearn,
               ),
 
@@ -434,9 +404,9 @@ class _HomeScreenState extends State<HomeScreen> {
               // TODAY'S GOAL
               // ==================================================
 
-              Text(
-                AppLocalization.t('todays_goal'),
-                style: const TextStyle(
+              const Text(
+                "Today's Goal",
+                style: TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.w900,
                   color: darkText,
@@ -453,9 +423,9 @@ class _HomeScreenState extends State<HomeScreen> {
               // LEARNING PATH
               // ==================================================
 
-              Text(
-                AppLocalization.t('learning_path'),
-                style: const TextStyle(
+              const Text(
+                'Learning Path',
+                style: TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.w900,
                   color: darkText,
@@ -473,8 +443,8 @@ class _HomeScreenState extends State<HomeScreen> {
               // ==================================================
 
               _sectionTitle(
-                AppLocalization.t('practice'),
-                AppLocalization.t('start'),
+                'Practice',
+                'Start',
                 _openPractice,
               ),
 
@@ -526,28 +496,28 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _navItem(
                 Icons.home_rounded,
-                AppLocalization.t('home'),
+                'Home',
                 true,
                     () {},
               ),
 
               _navItem(
                 Icons.menu_book_rounded,
-                AppLocalization.t('learn'),
+                'Learn',
                 false,
                 _openLearn,
               ),
 
               _navItem(
                 Icons.sports_esports_rounded,
-                AppLocalization.t('practice'),
+                'Practice',
                 false,
                 _openPractice,
               ),
 
               _navItem(
                 Icons.person_outline_rounded,
-                AppLocalization.t('profile'),
+                'Profile',
                 false,
                 _openProfile,
               ),
@@ -600,6 +570,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment:
               CrossAxisAlignment.start,
+
               children: [
                 Text(
                   _displayName,
@@ -617,7 +588,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 Text(
                   _email.isEmpty
-                      ? AppLocalization.t('learner_profile')
+                      ? 'Learner Profile'
                       : _email,
 
                   maxLines: 1,
@@ -712,28 +683,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(width: 14),
 
-              Expanded(
+              const Expanded(
                 child: Column(
                   crossAxisAlignment:
                   CrossAxisAlignment.start,
 
                   children: [
                     Text(
-                      AppLocalization.t('greetings'),
-                      style: const TextStyle(
+                      'Greetings',
+                      style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
 
-                    const SizedBox(height: 3),
+                    SizedBox(height: 3),
 
                     Text(
-                      AppLocalization.t(
-                        'continue_current_lesson',
-                      ),
-                      style: const TextStyle(
+                      'Continue your current lesson',
+                      style: TextStyle(
                         color: Colors.white70,
                         fontSize: 12,
                       ),
@@ -756,16 +725,16 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment:
             MainAxisAlignment.spaceBetween,
 
-            children: [
+            children: const [
               Text(
-                AppLocalization.t('lesson_progress'),
-                style: const TextStyle(
+                'Lesson Progress',
+                style: TextStyle(
                   color: Colors.white70,
                   fontSize: 12,
                 ),
               ),
 
-              const Text(
+              Text(
                 '20%',
                 style: TextStyle(
                   color: Colors.white,
@@ -812,9 +781,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              child: Text(
-                AppLocalization.t('continue_learning'),
-                style: const TextStyle(
+              child: const Text(
+                'Continue Learning',
+                style: TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 14,
                 ),
@@ -891,11 +860,9 @@ class _HomeScreenState extends State<HomeScreen> {
               CrossAxisAlignment.start,
 
               children: [
-                Text(
-                  AppLocalization.t(
-                    'daily_learning_goal',
-                  ),
-                  style: const TextStyle(
+                const Text(
+                  'Daily Learning Goal',
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: darkText,
@@ -917,11 +884,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 9),
 
-                Text(
-                  AppLocalization.t(
-                    'lesson_remaining',
-                  ),
-                  style: const TextStyle(
+                const Text(
+                  '1 lesson remaining',
+                  style: TextStyle(
                     fontSize: 12,
                     color: primary,
                     fontWeight: FontWeight.w700,
@@ -940,8 +905,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   Widget _learningPath() {
-    final current =
-    _displayLevel.toLowerCase();
+    final current = _displayLevel.toLowerCase();
 
     return Container(
       width: double.infinity,
@@ -960,33 +924,30 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _pathRow(
             Icons.looks_one_rounded,
-            AppLocalization.t('beginner'),
-            AppLocalization.t('build_foundations'),
+            'Beginner',
+            'Build your foundations',
             Colors.green,
-            current.contains('beginner') ||
-                current.contains('शुरुआ'),
+            current.contains('beginner'),
           ),
 
           _connector(),
 
           _pathRow(
             Icons.looks_two_rounded,
-            AppLocalization.t('intermediate'),
-            AppLocalization.t('build_fluency'),
+            'Intermediate',
+            'Build fluency',
             Colors.orange,
-            current.contains('intermediate') ||
-                current.contains('मध्य'),
+            current.contains('intermediate'),
           ),
 
           _connector(),
 
           _pathRow(
             Icons.looks_3_rounded,
-            AppLocalization.t('advanced'),
-            AppLocalization.t('master_communication'),
+            'Advanced',
+            'Master communication',
             Colors.deepPurple,
-            current.contains('advanced') ||
-                current.contains('उन्नत'),
+            current.contains('advanced'),
           ),
         ],
       ),
@@ -1068,7 +1029,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
 
                       child: Text(
-                        AppLocalization.t('current'),
+                        'CURRENT',
                         style: TextStyle(
                           color: color,
                           fontSize: 8,
@@ -1165,30 +1126,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(width: 15),
 
-            Expanded(
+            const Expanded(
               child: Column(
                 crossAxisAlignment:
                 CrossAxisAlignment.start,
 
                 children: [
                   Text(
-                    AppLocalization.t(
-                      'practice_signs',
-                    ),
-                    style: const TextStyle(
+                    'Practice Signs',
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
                       color: darkText,
                     ),
                   ),
 
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
 
                   Text(
-                    AppLocalization.t(
-                      'review_learned',
-                    ),
-                    style: const TextStyle(
+                    'Review what you have learned',
+                    style: TextStyle(
                       fontSize: 12,
                       color: secondaryText,
                     ),
@@ -1233,22 +1190,22 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(22),
       ),
 
-      child: Column(
+      child: const Column(
         crossAxisAlignment:
         CrossAxisAlignment.start,
 
         children: [
-          const Icon(
+          Icon(
             Icons.format_quote_rounded,
             color: Colors.white54,
             size: 30,
           ),
 
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
 
           Text(
-            AppLocalization.t('motivation'),
-            style: const TextStyle(
+            'Every sign you learn brings you closer to communicating without barriers.',
+            style: TextStyle(
               color: Colors.white,
               fontSize: 16,
               height: 1.5,
@@ -1256,11 +1213,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           Text(
-            AppLocalization.t('keep_learning'),
-            style: const TextStyle(
+            'Keep learning. Keep connecting.',
+            style: TextStyle(
               color: Colors.white60,
               fontSize: 12,
             ),

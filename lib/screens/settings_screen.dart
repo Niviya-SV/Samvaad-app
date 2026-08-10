@@ -25,8 +25,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // STATE
   // ============================================================
 
-  String _language = 'English';
-
   bool _notifications = true;
   bool _sound = true;
   bool _haptic = true;
@@ -54,8 +52,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ============================================================
 
   Future<void> _loadSettings() async {
-    final language = await AppStorage.getLanguage();
-
     final notifications =
     await AppStorage.getNotifications();
 
@@ -80,8 +76,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
 
     setState(() {
-      _language = language;
-
       _notifications = notifications;
       _sound = sound;
       _haptic = haptic;
@@ -112,168 +106,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           duration: const Duration(seconds: 2),
         ),
       );
-  }
-
-  // ============================================================
-  // LANGUAGE
-  // ============================================================
-
-  Future<void> _chooseLanguage() async {
-    final languages = [
-      'English',
-      'हिन्दी',
-      'தமிழ்',
-      'తెలుగు',
-      'ಕನ್ನಡ',
-      'മലയാളം',
-      'मराठी',
-      'বাংলা',
-      'ગુજરાતી',
-      'ਪੰਜਾਬੀ',
-    ];
-
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.white,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(28),
-        ),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              22,
-              20,
-              22,
-              20,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 45,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD9D5E3),
-                    borderRadius:
-                    BorderRadius.circular(10),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Choose Language',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: darkText,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 6),
-
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Select your preferred app language.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: secondaryText,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 15),
-
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: languages.length,
-                    itemBuilder: (context, index) {
-                      final language = languages[index];
-
-                      final isSelected =
-                          language == _language;
-
-                      return ListTile(
-                        contentPadding:
-                        const EdgeInsets.symmetric(
-                          horizontal: 4,
-                        ),
-
-                        leading: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? lightPrimary
-                                : const Color(0xFFF5F3F8),
-                            borderRadius:
-                            BorderRadius.circular(13),
-                          ),
-                          child: Icon(
-                            Icons.language_rounded,
-                            color: isSelected
-                                ? primary
-                                : secondaryText,
-                          ),
-                        ),
-
-                        title: Text(
-                          language,
-                          style: TextStyle(
-                            color: darkText,
-                            fontWeight: isSelected
-                                ? FontWeight.w800
-                                : FontWeight.w600,
-                          ),
-                        ),
-
-                        trailing: isSelected
-                            ? const Icon(
-                          Icons.check_circle_rounded,
-                          color: primary,
-                        )
-                            : null,
-
-                        onTap: () {
-                          Navigator.pop(
-                            sheetContext,
-                            language,
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    if (selected == null) return;
-
-    // SAVE LANGUAGE LOCALLY.
-    await AppStorage.saveLanguage(selected);
-
-    if (!mounted) return;
-
-    setState(() {
-      _language = selected;
-    });
-
-    _showMessage(
-      'Language changed to $selected',
-    );
   }
 
   // ============================================================
@@ -415,7 +247,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ============================================================
-  // ACCESSIBILITY PAGE
+  // ACCESSIBILITY
   // ============================================================
 
   Future<void> _openAccessibility() async {
@@ -426,7 +258,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
 
-    // Reload values when returning.
+    if (!mounted) return;
+
     await _loadSettings();
   }
 
@@ -445,7 +278,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           content: const Text(
             'This will remove your saved profile, '
-                'language, preferences, and other local '
+                'preferences, learning progress, and other '
                 'Samvaad data from this device.',
           ),
 
@@ -466,12 +299,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.redAccent,
               ),
+
               onPressed: () {
                 Navigator.pop(
                   dialogContext,
                   true,
                 );
               },
+
               child: const Text(
                 'Clear Data',
               ),
@@ -488,8 +323,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
 
     setState(() {
-      _language = 'English';
-
       _notifications = true;
       _sound = true;
       _haptic = true;
@@ -521,7 +354,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Icons.help_outline_rounded,
                 color: primary,
               ),
+
               SizedBox(width: 10),
+
               Expanded(
                 child: Text(
                   'Help & Support',
@@ -536,7 +371,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   '• Learn: Explore ISL lessons and learning paths.\n\n'
                   '• Practice: Review signs and improve your skills.\n\n'
                   '• Profile: Update your learner information.\n\n'
-                  '• Settings: Customize language, sound, notifications and accessibility.',
+                  '• Settings: Customize sound, notifications and accessibility.',
               style: TextStyle(
                 height: 1.5,
                 color: secondaryText,
@@ -574,7 +409,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Icons.security_rounded,
                 color: primary,
               ),
+
               SizedBox(width: 10),
+
               Expanded(
                 child: Text(
                   'Privacy & Security',
@@ -621,19 +458,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showAbout() {
     showAboutDialog(
       context: context,
-
       applicationName: 'Samvaad',
-
       applicationVersion: '1.0.0',
 
       applicationIcon: Container(
         width: 48,
         height: 48,
+
         decoration: BoxDecoration(
           color: lightPrimary,
-          borderRadius:
-          BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(14),
         ),
+
         child: const Icon(
           Icons.front_hand_rounded,
           color: primary,
@@ -708,36 +544,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
 
           children: [
-            // ====================================================
+            // ==================================================
             // GENERAL
-            // ====================================================
+            // ==================================================
 
             _sectionTitle('General'),
 
             _settingsCard(
               children: [
                 _settingsTile(
-                  icon: Icons.language_rounded,
-                  title: 'Language',
-                  subtitle: _language,
-                  onTap: _chooseLanguage,
-                  trailing: const Icon(
-                    Icons.chevron_right_rounded,
-                    color: secondaryText,
-                  ),
-                ),
-
-                _divider(),
-
-                _settingsTile(
-                  icon:
-                  Icons.notifications_none_rounded,
+                  icon: Icons.notifications_none_rounded,
                   title: 'Notifications',
                   subtitle: _notifications
                       ? 'Enabled'
                       : 'Disabled',
+
                   trailing: Switch.adaptive(
                     value: _notifications,
+
                     thumbColor:
                     WidgetStateProperty.resolveWith(
                           (states) {
@@ -750,6 +574,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         return Colors.grey;
                       },
                     ),
+
                     onChanged: _setNotifications,
                   ),
                 ),
@@ -759,11 +584,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _settingsTile(
                   icon: Icons.volume_up_outlined,
                   title: 'Sound',
-                  subtitle: _sound
-                      ? 'Enabled'
-                      : 'Disabled',
+                  subtitle:
+                  _sound ? 'Enabled' : 'Disabled',
+
                   trailing: Switch.adaptive(
                     value: _sound,
+
                     thumbColor:
                     WidgetStateProperty.resolveWith(
                           (states) {
@@ -776,6 +602,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         return Colors.grey;
                       },
                     ),
+
                     onChanged: _setSound,
                   ),
                 ),
@@ -785,11 +612,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _settingsTile(
                   icon: Icons.vibration_rounded,
                   title: 'Haptic Feedback',
-                  subtitle: _haptic
-                      ? 'Enabled'
-                      : 'Disabled',
+                  subtitle:
+                  _haptic ? 'Enabled' : 'Disabled',
+
                   trailing: Switch.adaptive(
                     value: _haptic,
+
                     thumbColor:
                     WidgetStateProperty.resolveWith(
                           (states) {
@@ -802,6 +630,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         return Colors.grey;
                       },
                     ),
+
                     onChanged: _setHaptic,
                   ),
                 ),
@@ -810,9 +639,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 26),
 
-            // ====================================================
+            // ==================================================
             // ACCESSIBILITY
-            // ====================================================
+            // ==================================================
 
             _sectionTitle('Accessibility'),
 
@@ -823,7 +652,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: 'Accessibility',
                   subtitle:
                   'Large text, contrast and motion settings',
+
                   onTap: _openAccessibility,
+
                   trailing: const Icon(
                     Icons.chevron_right_rounded,
                     color: secondaryText,
@@ -835,11 +666,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _settingsTile(
                   icon: Icons.text_fields_rounded,
                   title: 'Large Text',
-                  subtitle: _largeText
-                      ? 'Enabled'
-                      : 'Disabled',
+                  subtitle:
+                  _largeText ? 'Enabled' : 'Disabled',
+
                   trailing: Switch.adaptive(
                     value: _largeText,
+
                     thumbColor:
                     WidgetStateProperty.resolveWith(
                           (states) {
@@ -852,6 +684,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         return Colors.grey;
                       },
                     ),
+
                     onChanged: _setLargeText,
                   ),
                 ),
@@ -864,8 +697,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: _highContrast
                       ? 'Enabled'
                       : 'Disabled',
+
                   trailing: Switch.adaptive(
                     value: _highContrast,
+
                     thumbColor:
                     WidgetStateProperty.resolveWith(
                           (states) {
@@ -878,6 +713,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         return Colors.grey;
                       },
                     ),
+
                     onChanged: _setHighContrast,
                   ),
                 ),
@@ -885,14 +721,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _divider(),
 
                 _settingsTile(
-                  icon:
-                  Icons.motion_photos_off_rounded,
+                  icon: Icons.motion_photos_off_rounded,
                   title: 'Reduced Motion',
                   subtitle: _reducedMotion
                       ? 'Enabled'
                       : 'Disabled',
+
                   trailing: Switch.adaptive(
                     value: _reducedMotion,
+
                     thumbColor:
                     WidgetStateProperty.resolveWith(
                           (states) {
@@ -905,6 +742,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         return Colors.grey;
                       },
                     ),
+
                     onChanged: _setReducedMotion,
                   ),
                 ),
@@ -913,9 +751,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 26),
 
-            // ====================================================
+            // ==================================================
             // PRIVACY
-            // ====================================================
+            // ==================================================
 
             _sectionTitle('Privacy & Security'),
 
@@ -926,7 +764,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: 'Privacy & Security',
                   subtitle:
                   'Your data and privacy',
+
                   onTap: _showPrivacy,
+
                   trailing: const Icon(
                     Icons.chevron_right_rounded,
                     color: secondaryText,
@@ -936,14 +776,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _divider(),
 
                 _settingsTile(
-                  icon:
-                  Icons.analytics_outlined,
+                  icon: Icons.analytics_outlined,
                   title: 'Analytics',
-                  subtitle: _analytics
-                      ? 'Enabled'
-                      : 'Disabled',
+                  subtitle:
+                  _analytics ? 'Enabled' : 'Disabled',
+
                   trailing: Switch.adaptive(
                     value: _analytics,
+
                     thumbColor:
                     WidgetStateProperty.resolveWith(
                           (states) {
@@ -956,6 +796,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         return Colors.grey;
                       },
                     ),
+
                     onChanged: _setAnalytics,
                   ),
                 ),
@@ -963,14 +804,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _divider(),
 
                 _settingsTile(
-                  icon:
-                  Icons.delete_outline_rounded,
+                  icon: Icons.delete_outline_rounded,
                   title: 'Clear Local Data',
                   subtitle:
                   'Remove saved data from this device',
+
                   onTap: _clearData,
+
                   titleColor: Colors.redAccent,
                   iconColor: Colors.redAccent,
+
                   trailing: const Icon(
                     Icons.chevron_right_rounded,
                     color: Colors.redAccent,
@@ -981,21 +824,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 26),
 
-            // ====================================================
+            // ==================================================
             // SUPPORT
-            // ====================================================
+            // ==================================================
 
             _sectionTitle('Support'),
 
             _settingsCard(
               children: [
                 _settingsTile(
-                  icon:
-                  Icons.help_outline_rounded,
+                  icon: Icons.help_outline_rounded,
                   title: 'Help & Support',
                   subtitle:
                   'Get help using Samvaad',
+
                   onTap: _showHelp,
+
                   trailing: const Icon(
                     Icons.chevron_right_rounded,
                     color: secondaryText,
@@ -1005,12 +849,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _divider(),
 
                 _settingsTile(
-                  icon:
-                  Icons.info_outline_rounded,
+                  icon: Icons.info_outline_rounded,
                   title: 'About Samvaad',
-                  subtitle:
-                  'Version 1.0.0',
+                  subtitle: 'Version 1.0.0',
+
                   onTap: _showAbout,
+
                   trailing: const Icon(
                     Icons.chevron_right_rounded,
                     color: secondaryText,
@@ -1021,9 +865,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 30),
 
-            // ====================================================
+            // ==================================================
             // FOOTER
-            // ====================================================
+            // ==================================================
 
             const Center(
               child: Text(
@@ -1064,6 +908,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         left: 4,
         bottom: 10,
       ),
+
       child: Text(
         title,
         style: const TextStyle(
@@ -1085,12 +930,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
+
         borderRadius:
         BorderRadius.circular(22),
+
         border: Border.all(
           color: const Color(0xFFE9E5EF),
         ),
       ),
+
       child: Column(
         children: children,
       ),
@@ -1112,6 +960,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) {
     return InkWell(
       onTap: onTap,
+
       borderRadius:
       BorderRadius.circular(20),
 
@@ -1152,10 +1001,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Text(
                     title,
+
                     style: TextStyle(
                       color:
                       titleColor ?? darkText,
+
                       fontSize: 15,
+
                       fontWeight:
                       FontWeight.w700,
                     ),
@@ -1165,9 +1017,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   Text(
                     subtitle,
+
                     maxLines: 2,
                     overflow:
                     TextOverflow.ellipsis,
+
                     style: const TextStyle(
                       color: secondaryText,
                       fontSize: 12,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'lesson_screen.dart';
+import '../services/app_storage.dart';
+
 class LearnScreen extends StatefulWidget {
   const LearnScreen({super.key});
 
@@ -9,8 +11,13 @@ class LearnScreen extends StatefulWidget {
 
 class _LearnScreenState extends State<LearnScreen> {
   int selectedLevel = 0;
+  bool _loadingProgress = true;
 
   final List<LearningLevel> levels = [
+    // ============================================================
+    // BEGINNER
+    // ============================================================
+
     LearningLevel(
       title: 'Beginner',
       subtitle: 'Start your ISL journey',
@@ -32,9 +39,9 @@ class _LearnScreenState extends State<LearnScreen> {
           title: 'Numbers',
           subtitle: 'Learn numbers 1–20',
           icon: Icons.pin_rounded,
-          progress: 0.65,
+          progress: 0.0,
           xp: 70,
-          unlocked: true,
+          unlocked: false,
           completed: false,
         ),
         Chapter(
@@ -42,9 +49,9 @@ class _LearnScreenState extends State<LearnScreen> {
           title: 'Basic Words',
           subtitle: 'Everyday words & signs',
           icon: Icons.chat_bubble_rounded,
-          progress: 0.25,
+          progress: 0.0,
           xp: 80,
-          unlocked: true,
+          unlocked: false,
           completed: false,
         ),
         Chapter(
@@ -54,7 +61,7 @@ class _LearnScreenState extends State<LearnScreen> {
           icon: Icons.family_restroom_rounded,
           progress: 0.0,
           xp: 100,
-          unlocked: true,
+          unlocked: false,
           completed: false,
         ),
         Chapter(
@@ -79,6 +86,11 @@ class _LearnScreenState extends State<LearnScreen> {
         ),
       ],
     ),
+
+    // ============================================================
+    // INTERMEDIATE
+    // ============================================================
+
     LearningLevel(
       title: 'Intermediate',
       subtitle: 'Build stronger conversations',
@@ -92,7 +104,7 @@ class _LearnScreenState extends State<LearnScreen> {
           icon: Icons.today_rounded,
           progress: 0.0,
           xp: 120,
-          unlocked: true,
+          unlocked: false,
           completed: false,
         ),
         Chapter(
@@ -102,7 +114,7 @@ class _LearnScreenState extends State<LearnScreen> {
           icon: Icons.school_rounded,
           progress: 0.0,
           xp: 140,
-          unlocked: true,
+          unlocked: false,
           completed: false,
         ),
         Chapter(
@@ -137,6 +149,11 @@ class _LearnScreenState extends State<LearnScreen> {
         ),
       ],
     ),
+
+    // ============================================================
+    // ADVANCED
+    // ============================================================
+
     LearningLevel(
       title: 'Advanced',
       subtitle: 'Communicate with confidence',
@@ -150,7 +167,7 @@ class _LearnScreenState extends State<LearnScreen> {
           icon: Icons.menu_book_rounded,
           progress: 0.0,
           xp: 200,
-          unlocked: true,
+          unlocked: false,
           completed: false,
         ),
         Chapter(
@@ -187,8 +204,102 @@ class _LearnScreenState extends State<LearnScreen> {
     ),
   ];
 
+  // ============================================================
+  // INIT
+  // ============================================================
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLearningProgress();
+  }
+
+  // ============================================================
+  // LOAD LOCAL PROGRESS
+  // ============================================================
+
+  Future<void> _loadLearningProgress() async {
+    for (int levelIndex = 0; levelIndex < levels.length; levelIndex++) {
+      final level = levels[levelIndex];
+
+      for (final chapter in level.chapters) {
+        final completed = await AppStorage.isChapterCompleted(
+          level.title,
+          chapter.number,
+        );
+
+        final progress = await AppStorage.getChapterProgress(
+          level.title,
+          chapter.number,
+        );
+
+        chapter.completed = completed;
+
+        if (completed) {
+          chapter.progress = 1.0;
+        } else {
+          chapter.progress = progress;
+        }
+      }
+
+      // ----------------------------------------------------------
+      // Unlock chapters sequentially.
+      //
+      // Chapter 1 is available when the level itself is available.
+      // Every following chapter requires the previous chapter.
+      // ----------------------------------------------------------
+
+      for (int i = 0; i < level.chapters.length; i++) {
+        if (i == 0) {
+          level.chapters[i].unlocked = _isLevelUnlocked(levelIndex);
+        } else {
+          level.chapters[i].unlocked =
+              level.chapters[i - 1].completed;
+        }
+      }
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _loadingProgress = false;
+    });
+  }
+
+  // ============================================================
+  // LEVEL UNLOCK LOGIC
+  // ============================================================
+
+  bool _isLevelUnlocked(int levelIndex) {
+    if (levelIndex == 0) {
+      return true;
+    }
+
+    final previousLevel = levels[levelIndex - 1];
+
+    return previousLevel.chapters.isNotEmpty &&
+        previousLevel.chapters.every(
+              (chapter) => chapter.completed,
+        );
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
+    if (_loadingProgress) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFFFFBF5),
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFF6C63A8),
+          ),
+        ),
+      );
+    }
+
     final level = levels[selectedLevel];
 
     return Scaffold(
@@ -201,7 +312,12 @@ class _LearnScreenState extends State<LearnScreen> {
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                padding: const EdgeInsets.fromLTRB(
+                  20,
+                  8,
+                  20,
+                  40,
+                ),
                 child: Column(
                   children: [
                     _buildLevelHeader(level),
@@ -217,9 +333,9 @@ class _LearnScreenState extends State<LearnScreen> {
     );
   }
 
-  // ------------------------------------------------------------
+  // ============================================================
   // HEADER
-  // ------------------------------------------------------------
+  // ============================================================
 
   Widget _buildHeader() {
     return Padding(
@@ -240,6 +356,7 @@ class _LearnScreenState extends State<LearnScreen> {
             ),
           ),
           const SizedBox(width: 12),
+
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -263,12 +380,15 @@ class _LearnScreenState extends State<LearnScreen> {
               ],
             ),
           ),
+
           _statBox(
             icon: Icons.local_fire_department_rounded,
             value: '7',
             label: 'Days',
           ),
+
           const SizedBox(width: 8),
+
           _statBox(
             icon: Icons.bolt_rounded,
             value: '240',
@@ -328,9 +448,9 @@ class _LearnScreenState extends State<LearnScreen> {
     );
   }
 
-  // ------------------------------------------------------------
+  // ============================================================
   // LEVEL SELECTOR
-  // ------------------------------------------------------------
+  // ============================================================
 
   Widget _buildLevelSelector() {
     return Container(
@@ -354,8 +474,12 @@ class _LearnScreenState extends State<LearnScreen> {
                   });
                 },
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  duration: const Duration(
+                    milliseconds: 250,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 11,
+                  ),
                   decoration: BoxDecoration(
                     color: selected
                         ? Colors.white
@@ -406,16 +530,18 @@ class _LearnScreenState extends State<LearnScreen> {
     );
   }
 
-  // ------------------------------------------------------------
+  // ============================================================
   // LEVEL HEADER
-  // ------------------------------------------------------------
+  // ============================================================
 
   Widget _buildLevelHeader(LearningLevel level) {
     final completed = level.chapters
         .where((chapter) => chapter.completed)
         .length;
 
-    final progress = completed / level.chapters.length;
+    final progress = level.chapters.isEmpty
+        ? 0.0
+        : completed / level.chapters.length;
 
     return Container(
       width: double.infinity,
@@ -454,7 +580,9 @@ class _LearnScreenState extends State<LearnScreen> {
               size: 31,
             ),
           ),
+
           const SizedBox(width: 15),
+
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -482,7 +610,8 @@ class _LearnScreenState extends State<LearnScreen> {
                     value: progress,
                     minHeight: 7,
                     backgroundColor: Colors.white,
-                    valueColor: AlwaysStoppedAnimation<Color>(
+                    valueColor:
+                    AlwaysStoppedAnimation<Color>(
                       level.color,
                     ),
                   ),
@@ -490,7 +619,9 @@ class _LearnScreenState extends State<LearnScreen> {
               ],
             ),
           ),
+
           const SizedBox(width: 12),
+
           Text(
             '${(progress * 100).round()}%',
             style: TextStyle(
@@ -504,9 +635,9 @@ class _LearnScreenState extends State<LearnScreen> {
     );
   }
 
-  // ------------------------------------------------------------
+  // ============================================================
   // LEARNING PATH
-  // ------------------------------------------------------------
+  // ============================================================
 
   Widget _buildLearningPath(LearningLevel level) {
     return Column(
@@ -514,7 +645,8 @@ class _LearnScreenState extends State<LearnScreen> {
         level.chapters.length,
             (index) {
           final chapter = level.chapters[index];
-          final isLast = index == level.chapters.length - 1;
+          final isLast =
+              index == level.chapters.length - 1;
 
           return _buildChapterNode(
             chapter: chapter,
@@ -526,6 +658,10 @@ class _LearnScreenState extends State<LearnScreen> {
     );
   }
 
+  // ============================================================
+  // CHAPTER NODE
+  // ============================================================
+
   Widget _buildChapterNode({
     required Chapter chapter,
     required LearningLevel level,
@@ -536,11 +672,10 @@ class _LearnScreenState extends State<LearnScreen> {
         GestureDetector(
           onTap: chapter.unlocked
               ? () => _openChapter(chapter)
-              : () => _showLockedMessage(),
+              : _showLockedMessage,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Node + connector
               SizedBox(
                 width: 78,
                 child: Column(
@@ -549,6 +684,7 @@ class _LearnScreenState extends State<LearnScreen> {
                       chapter: chapter,
                       level: level,
                     ),
+
                     if (!isLast)
                       Container(
                         width: 4,
@@ -557,7 +693,8 @@ class _LearnScreenState extends State<LearnScreen> {
                           color: chapter.completed
                               ? level.color
                               : const Color(0xFFE4E0EA),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius:
+                          BorderRadius.circular(10),
                         ),
                       ),
                   ],
@@ -566,10 +703,11 @@ class _LearnScreenState extends State<LearnScreen> {
 
               const SizedBox(width: 5),
 
-              // Chapter card
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 22),
+                  padding: const EdgeInsets.only(
+                    bottom: 22,
+                  ),
                   child: _buildChapterCard(
                     chapter: chapter,
                     level: level,
@@ -582,6 +720,10 @@ class _LearnScreenState extends State<LearnScreen> {
       ],
     );
   }
+
+  // ============================================================
+  // CHAPTER CIRCLE
+  // ============================================================
 
   Widget _buildChapterCircle({
     required Chapter chapter,
@@ -638,9 +780,9 @@ class _LearnScreenState extends State<LearnScreen> {
     );
   }
 
-  // ------------------------------------------------------------
+  // ============================================================
   // CHAPTER CARD
-  // ------------------------------------------------------------
+  // ============================================================
 
   Widget _buildChapterCard({
     required Chapter chapter,
@@ -661,7 +803,9 @@ class _LearnScreenState extends State<LearnScreen> {
         boxShadow: chapter.unlocked
             ? [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
+            color: Colors.black.withValues(
+              alpha: 0.035,
+            ),
             blurRadius: 12,
             offset: const Offset(0, 5),
           ),
@@ -686,6 +830,7 @@ class _LearnScreenState extends State<LearnScreen> {
                   ),
                 ),
               ),
+
               if (chapter.unlocked)
                 Row(
                   children: [
@@ -724,6 +869,7 @@ class _LearnScreenState extends State<LearnScreen> {
                   ),
                 ),
               ),
+
               if (chapter.completed)
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -731,8 +877,10 @@ class _LearnScreenState extends State<LearnScreen> {
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: level.color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
+                    color:
+                    level.color.withValues(alpha: 0.12),
+                    borderRadius:
+                    BorderRadius.circular(20),
                   ),
                   child: Text(
                     'COMPLETED',
@@ -768,8 +916,10 @@ class _LearnScreenState extends State<LearnScreen> {
                   child: LinearProgressIndicator(
                     value: chapter.progress,
                     minHeight: 7,
-                    backgroundColor: const Color(0xFFEDE9F0),
-                    valueColor: AlwaysStoppedAnimation<Color>(
+                    backgroundColor:
+                    const Color(0xFFEDE9F0),
+                    valueColor:
+                    AlwaysStoppedAnimation<Color>(
                       chapter.unlocked
                           ? level.color
                           : const Color(0xFFD0CBD6),
@@ -777,7 +927,9 @@ class _LearnScreenState extends State<LearnScreen> {
                   ),
                 ),
               ),
+
               const SizedBox(width: 10),
+
               Text(
                 '${(chapter.progress * 100).round()}%',
                 style: TextStyle(
@@ -802,10 +954,12 @@ class _LearnScreenState extends State<LearnScreen> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: level.color,
                 side: BorderSide(
-                  color: level.color.withValues(alpha: 0.4),
+                  color:
+                  level.color.withValues(alpha: 0.4),
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(13),
+                  borderRadius:
+                  BorderRadius.circular(13),
                 ),
               ),
               child: Text(
@@ -834,12 +988,14 @@ class _LearnScreenState extends State<LearnScreen> {
                 ),
               ),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF9994A2),
+                foregroundColor:
+                const Color(0xFF9994A2),
                 side: const BorderSide(
                   color: Color(0xFFDCD7E2),
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(13),
+                  borderRadius:
+                  BorderRadius.circular(13),
                 ),
               ),
             ),
@@ -849,15 +1005,16 @@ class _LearnScreenState extends State<LearnScreen> {
     );
   }
 
-  // ------------------------------------------------------------
-  // CHAPTER ACTION
-  // ------------------------------------------------------------
+  // ============================================================
+  // OPEN CHAPTER
+  // ============================================================
 
-  void _openChapter(Chapter chapter) {
-    Navigator.push(
+  Future<void> _openChapter(Chapter chapter) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => LessonScreen(
+          level: levels[selectedLevel].title,
           chapterTitle: chapter.title,
           chapterSubtitle: chapter.subtitle,
           chapterNumber: chapter.number,
@@ -865,7 +1022,14 @@ class _LearnScreenState extends State<LearnScreen> {
         ),
       ),
     );
+
+    // Reload local progress when returning from lesson.
+    await _loadLearningProgress();
   }
+
+  // ============================================================
+  // LOCKED MESSAGE
+  // ============================================================
 
   void _showLockedMessage() {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -873,7 +1037,7 @@ class _LearnScreenState extends State<LearnScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text(
-          'Complete the previous chapters to unlock this one.',
+          'Complete the previous chapter to unlock this one.',
         ),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
@@ -909,10 +1073,13 @@ class Chapter {
   final String title;
   final String subtitle;
   final IconData icon;
-  final double progress;
+
+  double progress;
+
   final int xp;
-  final bool unlocked;
-  final bool completed;
+
+  bool unlocked;
+  bool completed;
 
   Chapter({
     required this.number,

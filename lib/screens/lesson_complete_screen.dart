@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'practice_screen.dart';
-
+import 'quiz_screen.dart';
 class LessonCompleteScreen extends StatelessWidget {
   final String chapterTitle;
   final int xp;
@@ -155,10 +155,11 @@ class LessonCompleteScreen extends StatelessWidget {
                 height: 56,
                 child: OutlinedButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Quiz is coming next!',
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => QuizScreen(
+                          chapterTitle: chapterTitle,
                         ),
                       ),
                     );
