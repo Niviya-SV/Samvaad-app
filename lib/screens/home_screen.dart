@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/app_storage.dart';
+import '../services/api_service.dart';
 
 import 'learn_screen.dart';
 import 'practice_screen.dart';
@@ -23,22 +25,33 @@ class HomeScreen extends StatefulWidget {
   });
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() =>
+      _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+
   // ============================================================
   // COLORS
   // ============================================================
 
-  static const Color primary = Color(0xFF6C63A8);
-  static const Color darkText = Color(0xFF29263D);
-  static const Color secondaryText = Color(0xFF706B7C);
-  static const Color background = Color(0xFFFFFBF5);
-  static const Color lightPrimary = Color(0xFFEAE6F8);
+  static const Color primary =
+  Color(0xFF6C63A8);
+
+  static const Color darkText =
+  Color(0xFF29263D);
+
+  static const Color secondaryText =
+  Color(0xFF706B7C);
+
+  static const Color background =
+  Color(0xFFFFFBF5);
+
+  static const Color lightPrimary =
+  Color(0xFFEAE6F8);
 
   // ============================================================
-  // LEARNER DATA
+  // USER DATA
   // ============================================================
 
   String _name = '';
@@ -46,7 +59,35 @@ class _HomeScreenState extends State<HomeScreen> {
   String _goal = '';
   String _level = '';
 
+  // ============================================================
+  // LESSON DATA
+  // ============================================================
+
+  List<Map<String, dynamic>> _lessons = [];
+
+  // ============================================================
+  // PROGRESS DATA
+  // ============================================================
+
+  List<Map<String, dynamic>> _progress = [];
+
+  int _totalLessons = 0;
+  int _completedLessons = 0;
+
+  // REAL BACKEND STATISTICS
+  int _xp = 0;
+  int _currentStreak = 0;
+  String? _lastActivityDate;
+  int _achievementCount = 0;
+  double _averageScore = 0.0;
+  int _totalPracticeAttempts = 0;
+
+  Map<String, dynamic>? _continueLesson;
+
   bool _isLoading = true;
+  bool _isRefreshing = false;
+
+  String? _errorMessage;
 
   // ============================================================
   // INIT
@@ -55,155 +96,391 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadLearnerData();
+    _loadHomeData();
   }
 
   // ============================================================
-  // LOAD LEARNER DATA
+  // GET TOKEN
   // ============================================================
 
-  Future<void> _loadLearnerData() async {
-    final name = await AppStorage.getName();
-    final email = await AppStorage.getEmail();
-    final goal = await AppStorage.getGoal();
-    final level = await AppStorage.getLevel();
+  Future<String?> _getToken() async {
+    final prefs =
+    SharedPreferencesAsync();
 
-    if (!mounted) return;
-
-    setState(() {
-      _name = name.isNotEmpty ? name : (widget.learnerName ?? '');
-      _email = email.isNotEmpty ? email : (widget.email ?? '');
-      _goal = goal.isNotEmpty ? goal : (widget.goal ?? '');
-      _level = level.isNotEmpty ? level : (widget.level ?? '');
-      _isLoading = false;
-    });
-  }
-
-  // ============================================================
-  // PROFILE
-  // ============================================================
-
-  Future<void> _openProfile() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ProfileScreen(
-          learnerName: _name,
-          email: _email,
-          goal: _goal,
-        ),
-      ),
+    return prefs.getString(
+      'jwt_token',
     );
-
-    if (!mounted) return;
-
-    await _loadLearnerData();
   }
 
   // ============================================================
-  // SETTINGS
+  // LOAD HOME DATA
   // ============================================================
 
-  Future<void> _openSettings() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const SettingsScreen(),
-      ),
-    );
+  Future<void> _loadHomeData({
+    bool refresh = false,
+  }) async {
 
-    if (!mounted) return;
-
-    await _loadLearnerData();
-  }
-
-  // ============================================================
-  // NOTIFICATIONS
-  // ============================================================
-
-  Future<void> _openNotifications() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const NotificationsScreen(),
-      ),
-    );
-
-    if (!mounted) return;
-
-    await _loadLearnerData();
-  }
-
-  // ============================================================
-  // LEARN
-  // ============================================================
-
-  Future<void> _openLearn() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const LearnScreen(),
-      ),
-    );
-
-    if (!mounted) return;
-
-    await _loadLearnerData();
-  }
-
-  // ============================================================
-  // PRACTICE
-  // ============================================================
-
-  Future<void> _openPractice() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const PracticeScreen(
-          chapterTitle: 'Greetings',
-        ),
-      ),
-    );
-
-    if (!mounted) return;
-
-    await _loadLearnerData();
-  }
-
-  // ============================================================
-  // DISPLAY NAME
-  // ============================================================
-
-  String get _displayName {
-    final value = _name.trim();
-
-    if (value.isEmpty) {
-      return 'Learner';
+    if (refresh) {
+      setState(() {
+        _isRefreshing = true;
+      });
+    } else {
+      setState(() {
+        _isLoading = true;
+      });
     }
 
-    return value;
+    try {
+
+      // ========================================================
+      // LOCAL PROFILE DATA
+      // ========================================================
+
+      String name =
+      await AppStorage.getName();
+
+      String email =
+      await AppStorage.getEmail();
+
+      String goal =
+      await AppStorage.getGoal();
+
+      String level =
+      await AppStorage.getLevel();
+
+      // ========================================================
+      // WIDGET FALLBACK
+      // ========================================================
+
+      if (name.isEmpty &&
+          widget.learnerName != null) {
+        name = widget.learnerName!;
+      }
+
+      if (email.isEmpty &&
+          widget.email != null) {
+        email = widget.email!;
+      }
+
+      if (goal.isEmpty &&
+          widget.goal != null) {
+        goal = widget.goal!;
+      }
+
+      if (level.isEmpty &&
+          widget.level != null) {
+        level = widget.level!;
+      }
+
+      // ========================================================
+      // GET JWT
+      // ========================================================
+
+      final token =
+      await _getToken();
+
+      if (token == null ||
+          token.isEmpty) {
+        throw Exception(
+          'Login session not found.',
+        );
+      }
+
+      // ========================================================
+      // GET LESSONS + PROGRESS
+      // ========================================================
+
+      final results =
+      await Future.wait([
+        ApiService.getLessons(token),
+        ApiService.getProgress(token),
+        ApiService.getStatistics(token),
+      ]);
+
+      final lessonsData =
+      results[0] as List<dynamic>;
+
+      final progressData =
+      results[1] as List<dynamic>;
+
+      // ========================================================
+      // NORMALIZE LESSONS
+      // ========================================================
+
+      final lessons =
+      lessonsData
+          .whereType<Map>()
+          .map(
+            (lesson) =>
+        Map<String, dynamic>.from(
+          lesson,
+        ),
+      )
+          .toList();
+
+      // ========================================================
+      // NORMALIZE PROGRESS
+      // ========================================================
+
+      final progress =
+      progressData
+          .whereType<Map>()
+          .map(
+            (item) =>
+        Map<String, dynamic>.from(
+          item,
+        ),
+      )
+          .toList();
+
+      // ========================================================
+      // REAL BACKEND STATISTICS
+      // ========================================================
+
+      final statistics =
+      Map<String, dynamic>.from(
+        results[2] as Map,
+      );
+
+      final backendXp =
+          int.tryParse(
+            statistics['xp']?.toString() ?? '',
+          ) ?? 0;
+
+      final backendStreak =
+          int.tryParse(
+            statistics['currentStreak']?.toString() ?? '',
+          ) ?? 0;
+
+      final backendLastActivity =
+      statistics['lastActivityDate']?.toString();
+
+      final backendAchievementCount =
+          int.tryParse(
+            statistics['achievementCount']?.toString() ?? '',
+          ) ?? 0;
+
+      final backendPracticeAttempts =
+          int.tryParse(
+            statistics['totalPracticeAttempts']?.toString() ?? '',
+          ) ?? 0;
+
+      final backendAverageScore =
+          double.tryParse(
+            statistics['averageScore']?.toString() ?? '',
+          ) ?? 0.0;
+
+      // ========================================================
+      // SORT LESSONS
+      // ========================================================
+
+      lessons.sort(
+            (a, b) {
+
+          final chapterA =
+              a['chapter']
+                  ?.toString()
+                  .toLowerCase() ??
+                  '';
+
+          final chapterB =
+              b['chapter']
+                  ?.toString()
+                  .toLowerCase() ??
+                  '';
+
+          final chapterCompare =
+          chapterA.compareTo(
+            chapterB,
+          );
+
+          if (chapterCompare != 0) {
+            return chapterCompare;
+          }
+
+          final orderA =
+              int.tryParse(
+                a['lessonOrder']
+                    ?.toString() ??
+                    '',
+              ) ??
+                  0;
+
+          final orderB =
+              int.tryParse(
+                b['lessonOrder']
+                    ?.toString() ??
+                    '',
+              ) ??
+                  0;
+
+          return orderA.compareTo(
+            orderB,
+          );
+        },
+      );
+
+      // ========================================================
+      // TOTAL LESSONS
+      // ========================================================
+
+      final total =
+          lessons.length;
+
+      // ========================================================
+      // COMPLETED LESSONS
+      // ========================================================
+
+      final completedIds =
+      <int>{};
+
+      for (final item in progress) {
+
+        final completed =
+            item['completed'] == true;
+
+        if (!completed) {
+          continue;
+        }
+
+        final lessonId =
+        int.tryParse(
+          item['lessonId']
+              ?.toString() ??
+              '',
+        );
+
+        if (lessonId != null) {
+          completedIds.add(
+            lessonId,
+          );
+        }
+      }
+
+      final completed =
+          completedIds.length;
+
+      // ========================================================
+      // FIND NEXT INCOMPLETE LESSON
+      // ========================================================
+
+      Map<String, dynamic>? nextLesson;
+
+      for (final lesson in lessons) {
+
+        final id =
+        int.tryParse(
+          lesson['id']
+              ?.toString() ??
+              '',
+        );
+
+        if (id == null) {
+          continue;
+        }
+
+        if (!completedIds.contains(id)) {
+          nextLesson = lesson;
+          break;
+        }
+      }
+
+      // ========================================================
+      // UPDATE STATE
+      // ========================================================
+
+      if (!mounted) return;
+
+      setState(() {
+
+        _name = name;
+        _email = email;
+        _goal = goal;
+        _level = level;
+
+        _lessons = lessons;
+        _progress = progress;
+
+        _totalLessons = total;
+        _completedLessons = completed;
+
+        // Values come from the backend.
+        // Do not calculate or increment streak locally.
+        _xp = backendXp;
+        _currentStreak = backendStreak;
+        _lastActivityDate = backendLastActivity;
+        _achievementCount = backendAchievementCount;
+        _totalPracticeAttempts = backendPracticeAttempts;
+        _averageScore = backendAverageScore;
+
+        _continueLesson =
+            nextLesson;
+
+        _isLoading = false;
+        _isRefreshing = false;
+        _errorMessage = null;
+      });
+
+    } catch (e) {
+
+      debugPrint(
+        'Home loading error: $e',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        _isRefreshing = false;
+
+        _errorMessage =
+            e.toString();
+      });
+    }
   }
+
+  // ============================================================
+  // OVERALL PROGRESS
+  // ============================================================
+
+  double get _overallProgress {
+
+    if (_totalLessons <= 0) {
+      return 0;
+    }
+
+    return
+      (_completedLessons /
+          _totalLessons)
+          .clamp(0.0, 1.0);
+  }
+
+  // ============================================================
+  // PROGRESS PERCENTAGE
+  // ============================================================
+
+  int get _progressPercentage {
+
+    return (_overallProgress * 100)
+        .round();
+  }
+
+  // ============================================================
+  // FIRST NAME
+  // ============================================================
 
   String get _firstName {
-    final value = _displayName.trim();
+
+    final value =
+    _name.trim();
 
     if (value.isEmpty) {
       return 'Learner';
     }
 
-    return value.split(' ').first;
-  }
-
-  // ============================================================
-  // DISPLAY GOAL
-  // ============================================================
-
-  String get _displayGoal {
-    if (_goal.trim().isEmpty) {
-      return 'Build your ISL skills';
-    }
-
-    return _goal.trim();
+    return value
+        .split(' ')
+        .first;
   }
 
   // ============================================================
@@ -211,6 +488,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   String get _displayLevel {
+
     if (_level.trim().isEmpty) {
       return 'Beginner';
     }
@@ -219,67 +497,342 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ============================================================
+  // DISPLAY GOAL
+  // ============================================================
+
+  String get _displayGoal {
+
+    if (_goal.trim().isEmpty) {
+      return 'Build your ISL skills';
+    }
+
+    return _goal.trim();
+  }
+
+  // ============================================================
+  // CURRENT LESSON TITLE
+  // ============================================================
+
+  String get _continueLessonTitle {
+
+    if (_continueLesson == null) {
+      return 'All lessons completed!';
+    }
+
+    return _continueLesson!['title']
+        ?.toString() ??
+        'Next Lesson';
+  }
+
+  // ============================================================
+  // CURRENT LESSON CHAPTER
+  // ============================================================
+
+  String get _continueLessonChapter {
+
+    if (_continueLesson == null) {
+      return '';
+    }
+
+    return _continueLesson!['chapter']
+        ?.toString() ??
+        '';
+  }
+
+  // ============================================================
+  // CURRENT LESSON ID
+  // ============================================================
+
+  int? get _continueLessonId {
+
+    if (_continueLesson == null) {
+      return null;
+    }
+
+    return int.tryParse(
+      _continueLesson!['id']
+          ?.toString() ??
+          '',
+    );
+  }
+
+  // ============================================================
+  // LEVEL LESSONS
+  // ============================================================
+
+  List<Map<String, dynamic>>
+  _lessonsForLevel(
+      String level,
+      ) {
+
+    return _lessons
+        .where(
+          (lesson) =>
+      (lesson['level']
+          ?.toString()
+          .toLowerCase() ??
+          '') ==
+          level
+              .toLowerCase(),
+    )
+        .toList();
+  }
+
+  // ============================================================
+  // LEVEL COMPLETION
+  // ============================================================
+
+  double _levelProgress(
+      String level,
+      ) {
+
+    final levelLessons =
+    _lessonsForLevel(
+      level,
+    );
+
+    if (levelLessons.isEmpty) {
+      return 0;
+    }
+
+    int completed = 0;
+
+    for (final lesson
+    in levelLessons) {
+
+      final id =
+      int.tryParse(
+        lesson['id']
+            ?.toString() ??
+            '',
+      );
+
+      if (id == null) {
+        continue;
+      }
+
+      final found =
+      _progress.any(
+            (item) =>
+        item['lessonId']
+            ?.toString() ==
+            id.toString() &&
+            item['completed'] ==
+                true,
+      );
+
+      if (found) {
+        completed++;
+      }
+    }
+
+    return
+      (completed /
+          levelLessons.length)
+          .clamp(0.0, 1.0);
+  }
+
+  // ============================================================
+  // OPEN LEARN
+  // ============================================================
+
+  Future<void> _openLearn() async {
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+        const LearnScreen(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    await _loadHomeData(
+      refresh: true,
+    );
+  }
+
+  // ============================================================
+  // OPEN PRACTICE
+  // ============================================================
+
+  Future<void> _openPractice() async {
+
+    if (_continueLessonId == null) {
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+          const PracticeScreen(
+            chapterTitle:
+            'Greetings',
+          ),
+        ),
+      );
+
+    } else {
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              PracticeScreen(
+                chapterTitle:
+                _continueLessonChapter,
+              ),
+        ),
+      );
+    }
+
+    if (!mounted) return;
+
+    await _loadHomeData(
+      refresh: true,
+    );
+  }
+
+  // ============================================================
+  // OPEN PROFILE
+  // ============================================================
+
+  Future<void> _openProfile() async {
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            ProfileScreen(
+              learnerName: _name,
+              email: _email,
+              goal: _goal,
+            ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    await _loadHomeData(
+      refresh: true,
+    );
+  }
+
+  // ============================================================
+  // OPEN SETTINGS
+  // ============================================================
+
+  Future<void> _openSettings() async {
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+        const SettingsScreen(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    await _loadHomeData(
+      refresh: true,
+    );
+  }
+
+  // ============================================================
+  // OPEN NOTIFICATIONS
+  // ============================================================
+
+  Future<void> _openNotifications() async {
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+        const NotificationsScreen(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    await _loadHomeData(
+      refresh: true,
+    );
+  }
+
+  // ============================================================
   // BUILD
   // ============================================================
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+      BuildContext context,
+      ) {
+
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: background,
+        backgroundColor:
+        background,
+
         body: Center(
-          child: CircularProgressIndicator(
+          child:
+          CircularProgressIndicator(
             color: primary,
           ),
         ),
       );
     }
 
-    return _buildHome();
-  }
-
-  // ============================================================
-  // HOME UI
-  // ============================================================
-
-  Widget _buildHome() {
     return Scaffold(
-      backgroundColor: background,
+      backgroundColor:
+      background,
 
       // ========================================================
       // APP BAR
       // ========================================================
 
       appBar: AppBar(
-        backgroundColor: background,
+        backgroundColor:
+        background,
+
         elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        automaticallyImplyLeading: false,
+
+        surfaceTintColor:
+        Colors.transparent,
+
+        automaticallyImplyLeading:
+        false,
 
         title: const Text(
           'SAMVAAD',
+
           style: TextStyle(
             color: primary,
             fontSize: 21,
-            fontWeight: FontWeight.w900,
+            fontWeight:
+            FontWeight.w900,
             letterSpacing: 1.4,
           ),
         ),
 
         actions: [
+
           IconButton(
-            tooltip: 'Notifications',
-            onPressed: _openNotifications,
+            onPressed:
+            _openNotifications,
+
             icon: const Icon(
-              Icons.notifications_none_rounded,
+              Icons
+                  .notifications_none_rounded,
               color: darkText,
               size: 27,
             ),
           ),
 
           IconButton(
-            tooltip: 'Settings',
-            onPressed: _openSettings,
+            onPressed:
+            _openSettings,
+
             icon: const Icon(
               Icons.settings_outlined,
               color: darkText,
@@ -287,7 +840,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          const SizedBox(width: 8),
+          const SizedBox(
+            width: 8,
+          ),
         ],
       ),
 
@@ -297,12 +852,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
       body: RefreshIndicator(
         color: primary,
-        onRefresh: _loadLearnerData,
 
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
+        onRefresh: () =>
+            _loadHomeData(
+              refresh: true,
+            ),
 
-          padding: const EdgeInsets.fromLTRB(
+        child:
+        SingleChildScrollView(
+          physics:
+          const AlwaysScrollableScrollPhysics(),
+
+          padding:
+          const EdgeInsets.fromLTRB(
             20,
             8,
             20,
@@ -310,7 +872,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
 
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+            CrossAxisAlignment.start,
+
             children: [
 
               // ==================================================
@@ -319,27 +883,40 @@ class _HomeScreenState extends State<HomeScreen> {
 
               Row(
                 children: [
+
                   Expanded(
                     child: Column(
                       crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      CrossAxisAlignment
+                          .start,
+
                       children: [
+
                         Text(
                           'Hello, $_firstName 👋',
-                          style: const TextStyle(
+
+                          style:
+                          const TextStyle(
                             fontSize: 27,
-                            fontWeight: FontWeight.w900,
-                            color: darkText,
+                            fontWeight:
+                            FontWeight.w900,
+                            color:
+                            darkText,
                           ),
                         ),
 
-                        const SizedBox(height: 6),
+                        const SizedBox(
+                          height: 6,
+                        ),
 
                         const Text(
                           'Ready to continue your learning journey?',
-                          style: TextStyle(
+
+                          style:
+                          TextStyle(
                             fontSize: 14,
-                            color: secondaryText,
+                            color:
+                            secondaryText,
                             height: 1.4,
                           ),
                         ),
@@ -348,24 +925,35 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
 
                   GestureDetector(
-                    onTap: _openProfile,
+                    onTap:
+                    _openProfile,
 
                     child: Container(
                       width: 54,
                       height: 54,
 
-                      decoration: BoxDecoration(
-                        color: lightPrimary,
-                        shape: BoxShape.circle,
+                      decoration:
+                      BoxDecoration(
+                        color:
+                        lightPrimary,
 
-                        border: Border.all(
-                          color: primary.withValues(alpha: 0.2),
+                        shape:
+                        BoxShape.circle,
+
+                        border:
+                        Border.all(
+                          color:
+                          primary.withValues(
+                            alpha: 0.2,
+                          ),
                           width: 2,
                         ),
                       ),
 
-                      child: const Icon(
-                        Icons.person_rounded,
+                      child:
+                      const Icon(
+                        Icons
+                            .person_rounded,
                         color: primary,
                         size: 29,
                       ),
@@ -374,15 +962,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
 
-              const SizedBox(height: 22),
+              const SizedBox(
+                height: 22,
+              ),
 
               // ==================================================
-              // PROFILE QUICK CARD
+              // PROFILE
               // ==================================================
 
               _profileCard(),
 
-              const SizedBox(height: 25),
+              const SizedBox(
+                height: 14,
+              ),
+
+              _realStatsCard(),
+
+              const SizedBox(
+                height: 25,
+              ),
 
               // ==================================================
               // CONTINUE LEARNING
@@ -394,30 +992,40 @@ class _HomeScreenState extends State<HomeScreen> {
                 _openLearn,
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(
+                height: 12,
+              ),
 
               _continueLearningCard(),
 
-              const SizedBox(height: 28),
+              const SizedBox(
+                height: 28,
+              ),
 
               // ==================================================
-              // TODAY'S GOAL
+              // TODAY'S ACTIVITY
               // ==================================================
 
               const Text(
-                "Today's Goal",
+                "Today's Task",
+
                 style: TextStyle(
                   fontSize: 19,
-                  fontWeight: FontWeight.w900,
+                  fontWeight:
+                  FontWeight.w900,
                   color: darkText,
                 ),
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(
+                height: 12,
+              ),
 
-              _goalCard(),
+              _todayProgressCard(),
 
-              const SizedBox(height: 28),
+              const SizedBox(
+                height: 28,
+              ),
 
               // ==================================================
               // LEARNING PATH
@@ -425,18 +1033,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const Text(
                 'Learning Path',
+
                 style: TextStyle(
                   fontSize: 19,
-                  fontWeight: FontWeight.w900,
+                  fontWeight:
+                  FontWeight.w900,
                   color: darkText,
                 ),
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(
+                height: 12,
+              ),
 
               _learningPath(),
 
-              const SizedBox(height: 28),
+              const SizedBox(
+                height: 28,
+              ),
 
               // ==================================================
               // PRACTICE
@@ -448,11 +1062,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 _openPractice,
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(
+                height: 12,
+              ),
 
               _practiceCard(),
 
-              const SizedBox(height: 28),
+              const SizedBox(
+                height: 28,
+              ),
 
               // ==================================================
               // MOTIVATION
@@ -460,7 +1078,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
               _motivationCard(),
 
-              const SizedBox(height: 20),
+              const SizedBox(
+                height: 20,
+              ),
             ],
           ),
         ),
@@ -470,30 +1090,42 @@ class _HomeScreenState extends State<HomeScreen> {
       // BOTTOM NAVIGATION
       // ========================================================
 
-      bottomNavigationBar: SafeArea(
+      bottomNavigationBar:
+      SafeArea(
         child: Container(
-          padding: const EdgeInsets.symmetric(
+          padding:
+          const EdgeInsets.symmetric(
             horizontal: 10,
             vertical: 8,
           ),
 
-          decoration: BoxDecoration(
+          decoration:
+          BoxDecoration(
             color: Colors.white,
 
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
+                color:
+                Colors.black.withValues(
+                  alpha: 0.06,
+                ),
                 blurRadius: 18,
-                offset: const Offset(0, -5),
+                offset:
+                const Offset(
+                  0,
+                  -5,
+                ),
               ),
             ],
           ),
 
           child: Row(
             mainAxisAlignment:
-            MainAxisAlignment.spaceAround,
+            MainAxisAlignment
+                .spaceAround,
 
             children: [
+
               _navItem(
                 Icons.home_rounded,
                 'Home',
@@ -502,21 +1134,24 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
 
               _navItem(
-                Icons.menu_book_rounded,
+                Icons
+                    .menu_book_rounded,
                 'Learn',
                 false,
                 _openLearn,
               ),
 
               _navItem(
-                Icons.sports_esports_rounded,
+                Icons
+                    .sports_esports_rounded,
                 'Practice',
                 false,
                 _openPractice,
               ),
 
               _navItem(
-                Icons.person_outline_rounded,
+                Icons
+                    .person_outline_rounded,
                 'Profile',
                 false,
                 _openProfile,
@@ -533,58 +1168,91 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   Widget _profileCard() {
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
 
-      decoration: BoxDecoration(
+      padding:
+      const EdgeInsets.all(18),
+
+      decoration:
+      BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+
+        borderRadius:
+        BorderRadius.circular(
+          22,
+        ),
 
         border: Border.all(
-          color: const Color(0xFFEDEAF4),
+          color:
+          const Color(0xFFEDEAF4),
         ),
       ),
 
       child: Row(
         children: [
+
           Container(
             width: 52,
             height: 52,
 
-            decoration: BoxDecoration(
-              color: lightPrimary,
-              borderRadius: BorderRadius.circular(16),
+            decoration:
+            BoxDecoration(
+              color:
+              lightPrimary,
+
+              borderRadius:
+              BorderRadius.circular(
+                16,
+              ),
             ),
 
-            child: const Icon(
-              Icons.person_rounded,
+            child:
+            const Icon(
+              Icons
+                  .person_rounded,
               color: primary,
               size: 28,
             ),
           ),
 
-          const SizedBox(width: 14),
+          const SizedBox(
+            width: 14,
+          ),
 
           Expanded(
             child: Column(
               crossAxisAlignment:
-              CrossAxisAlignment.start,
+              CrossAxisAlignment
+                  .start,
 
               children: [
-                Text(
-                  _displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
 
-                  style: const TextStyle(
+                Text(
+                  _name.isEmpty
+                      ? 'Learner'
+                      : _name,
+
+                  maxLines: 1,
+
+                  overflow:
+                  TextOverflow
+                      .ellipsis,
+
+                  style:
+                  const TextStyle(
                     fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: darkText,
+                    fontWeight:
+                    FontWeight.w800,
+                    color:
+                    darkText,
                   ),
                 ),
 
-                const SizedBox(height: 4),
+                const SizedBox(
+                  height: 4,
+                ),
 
                 Text(
                   _email.isEmpty
@@ -592,22 +1260,32 @@ class _HomeScreenState extends State<HomeScreen> {
                       : _email,
 
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
 
-                  style: const TextStyle(
+                  overflow:
+                  TextOverflow
+                      .ellipsis,
+
+                  style:
+                  const TextStyle(
                     fontSize: 12,
-                    color: secondaryText,
+                    color:
+                    secondaryText,
                   ),
                 ),
 
-                const SizedBox(height: 4),
+                const SizedBox(
+                  height: 4,
+                ),
 
                 Text(
                   _displayLevel,
-                  style: const TextStyle(
+
+                  style:
+                  const TextStyle(
                     fontSize: 12,
                     color: primary,
-                    fontWeight: FontWeight.w700,
+                    fontWeight:
+                    FontWeight.w700,
                   ),
                 ),
               ],
@@ -615,11 +1293,112 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
 
           IconButton(
-            onPressed: _openProfile,
-            icon: const Icon(
-              Icons.edit_outlined,
+            onPressed:
+            _openProfile,
+
+            icon:
+            const Icon(
+              Icons
+                  .edit_outlined,
               color: primary,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // REAL XP + STREAK CARD
+  // ============================================================
+
+  Widget _realStatsCard() {
+    final bool hasStreak = _currentStreak > 0;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 18,
+        vertical: 16,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: const Color(0xFFEDEAF4),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF1D8),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: const Icon(
+                    Icons.local_fire_department_rounded,
+                    color: Color(0xFFF28C28),
+                    size: 27,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hasStreak
+                          ? '$_currentStreak day streak'
+                          : 'Start your streak',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: darkText,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      hasStreak
+                          ? 'Keep completing your daily task'
+                          : 'Complete today\'s task to begin',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 42,
+            color: const Color(0xFFEDEAF4),
+          ),
+          const SizedBox(width: 15),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Icon(
+                Icons.bolt_rounded,
+                color: Color(0xFFF4B400),
+                size: 21,
+              ),
+              const SizedBox(height: 1),
+              Text(
+                '$_xp XP',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: darkText,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -631,28 +1410,121 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   Widget _continueLearningCard() {
+
+    // ----------------------------------------------------------
+    // ALL LESSONS COMPLETED
+    // ----------------------------------------------------------
+
+    if (_continueLesson == null) {
+
+      return Container(
+        width: double.infinity,
+
+        padding:
+        const EdgeInsets.all(20),
+
+        decoration:
+        BoxDecoration(
+          color:
+          const Color(0xFFEAE6F8),
+
+          borderRadius:
+          BorderRadius.circular(
+            24,
+          ),
+        ),
+
+        child: Column(
+          children: [
+
+            const Icon(
+              Icons
+                  .emoji_events_rounded,
+              color: primary,
+              size: 46,
+            ),
+
+            const SizedBox(
+              height: 10,
+            ),
+
+            const Text(
+              'All lessons completed! 🎉',
+
+              textAlign:
+              TextAlign.center,
+
+              style:
+              TextStyle(
+                fontSize: 18,
+                fontWeight:
+                FontWeight.w900,
+                color: darkText,
+              ),
+            ),
+
+            const SizedBox(
+              height: 5,
+            ),
+
+            Text(
+              '$_completedLessons / $_totalLessons lessons completed',
+
+              style:
+              const TextStyle(
+                fontSize: 13,
+                color:
+                secondaryText,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ----------------------------------------------------------
+    // NEXT LESSON
+    // ----------------------------------------------------------
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(19),
 
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
+      padding:
+      const EdgeInsets.all(19),
+
+      decoration:
+      BoxDecoration(
+        gradient:
+        const LinearGradient(
           colors: [
             Color(0xFF6C63A8),
             Color(0xFF8177C4),
           ],
 
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin:
+          Alignment.topLeft,
+
+          end:
+          Alignment.bottomRight,
         ),
 
-        borderRadius: BorderRadius.circular(24),
+        borderRadius:
+        BorderRadius.circular(
+          24,
+        ),
 
         boxShadow: [
           BoxShadow(
-            color: primary.withValues(alpha: 0.2),
+            color:
+            primary.withValues(
+              alpha: 0.2,
+            ),
             blurRadius: 18,
-            offset: const Offset(0, 8),
+            offset:
+            const Offset(
+              0,
+              8,
+            ),
           ),
         ],
       ),
@@ -662,129 +1534,220 @@ class _HomeScreenState extends State<HomeScreen> {
         CrossAxisAlignment.start,
 
         children: [
+
           Row(
             children: [
+
               Container(
                 width: 48,
                 height: 48,
 
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
+                decoration:
+                BoxDecoration(
+                  color:
+                  Colors.white
+                      .withValues(
+                    alpha: 0.18,
+                  ),
+
                   borderRadius:
-                  BorderRadius.circular(15),
+                  BorderRadius.circular(
+                    15,
+                  ),
                 ),
 
-                child: const Icon(
-                  Icons.front_hand_rounded,
-                  color: Colors.white,
+                child:
+                const Icon(
+                  Icons
+                      .front_hand_rounded,
+                  color:
+                  Colors.white,
                   size: 27,
                 ),
               ),
 
-              const SizedBox(width: 14),
+              const SizedBox(
+                width: 14,
+              ),
 
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  CrossAxisAlignment
+                      .start,
 
                   children: [
+
                     Text(
-                      'Greetings',
-                      style: TextStyle(
-                        color: Colors.white,
+                      _continueLessonTitle,
+
+                      maxLines: 1,
+
+                      overflow:
+                      TextOverflow
+                          .ellipsis,
+
+                      style:
+                      const TextStyle(
+                        color:
+                        Colors.white,
                         fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                        fontWeight:
+                        FontWeight.w800,
                       ),
                     ),
 
-                    SizedBox(height: 3),
+                    const SizedBox(
+                      height: 3,
+                    ),
 
                     Text(
-                      'Continue your current lesson',
-                      style: TextStyle(
-                        color: Colors.white70,
+                      _continueLessonChapter
+                          .isEmpty
+                          ? 'Next lesson'
+                          : _continueLessonChapter,
+
+                      style:
+                      const TextStyle(
+                        color:
+                        Colors.white70,
                         fontSize: 12,
                       ),
                     ),
                   ],
                 ),
               ),
-
-              const Icon(
-                Icons.arrow_forward_ios_rounded,
-                color: Colors.white,
-                size: 17,
-              ),
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(
+            height: 20,
+          ),
+
+          // ----------------------------------------------------
+          // REAL OVERALL PROGRESS
+          // ----------------------------------------------------
 
           Row(
             mainAxisAlignment:
-            MainAxisAlignment.spaceBetween,
+            MainAxisAlignment
+                .spaceBetween,
 
-            children: const [
-              Text(
-                'Lesson Progress',
-                style: TextStyle(
-                  color: Colors.white70,
+            children: [
+
+              const Text(
+                'Overall Progress',
+
+                style:
+                TextStyle(
+                  color:
+                  Colors.white70,
                   fontSize: 12,
                 ),
               ),
 
               Text(
-                '20%',
-                style: TextStyle(
-                  color: Colors.white,
+                '$_progressPercentage%',
+
+                style:
+                const TextStyle(
+                  color:
+                  Colors.white,
                   fontSize: 12,
-                  fontWeight: FontWeight.w800,
+                  fontWeight:
+                  FontWeight.w800,
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(
+            height: 8,
+          ),
 
           ClipRRect(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius:
+            BorderRadius.circular(
+              10,
+            ),
 
-            child: const LinearProgressIndicator(
-              value: 0.2,
+            child:
+            LinearProgressIndicator(
+              value:
+              _overallProgress,
+
               minHeight: 8,
-              backgroundColor: Color(0x4DFFFFFF),
+
+              backgroundColor:
+              const Color(
+                0x4DFFFFFF,
+              ),
+
               valueColor:
-              AlwaysStoppedAnimation<Color>(
+              const AlwaysStoppedAnimation<
+                  Color>(
                 Colors.white,
               ),
             ),
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(
+            height: 9,
+          ),
+
+          Text(
+            '$_completedLessons of $_totalLessons lessons completed',
+
+            style:
+            const TextStyle(
+              color:
+              Colors.white70,
+              fontSize: 11,
+            ),
+          ),
+
+          const SizedBox(
+            height: 18,
+          ),
 
           SizedBox(
-            width: double.infinity,
+            width:
+            double.infinity,
+
             height: 48,
 
-            child: ElevatedButton(
-              onPressed: _openLearn,
+            child:
+            ElevatedButton(
+              onPressed:
+              _openLearn,
 
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: primary,
+              style:
+              ElevatedButton.styleFrom(
+                backgroundColor:
+                Colors.white,
+
+                foregroundColor:
+                primary,
+
                 elevation: 0,
 
-                shape: RoundedRectangleBorder(
+                shape:
+                RoundedRectangleBorder(
                   borderRadius:
-                  BorderRadius.circular(15),
+                  BorderRadius.circular(
+                    15,
+                  ),
                 ),
               ),
 
-              child: const Text(
+              child:
+              const Text(
                 'Continue Learning',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
+
+                style:
+                TextStyle(
+                  fontWeight:
+                  FontWeight.w800,
                   fontSize: 14,
                 ),
               ),
@@ -796,104 +1759,239 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ============================================================
-  // GOAL CARD
+  // DAILY TASK
   // ============================================================
 
-  Widget _goalCard() {
+  bool _isDailyTaskCompletedToday() {
+    if (_lastActivityDate == null ||
+        _lastActivityDate!.trim().isEmpty) {
+      return false;
+    }
+
+    final lastActivity =
+    DateTime.tryParse(_lastActivityDate!);
+
+    if (lastActivity == null) {
+      return false;
+    }
+
+    final now = DateTime.now();
+
+    return lastActivity.year == now.year &&
+        lastActivity.month == now.month &&
+        lastActivity.day == now.day;
+  }
+
+  Widget _todayProgressCard() {
+    final completedToday =
+    _isDailyTaskCompletedToday();
+
+    final progress =
+    completedToday ? 1.0 : 0.0;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
-
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-
         border: Border.all(
           color: const Color(0xFFEDEAF4),
         ),
       ),
-
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 68,
-            height: 68,
 
-            child: Stack(
-              alignment: Alignment.center,
+          // ======================================================
+          // HEADER
+          // ======================================================
 
-              children: [
-                const SizedBox(
-                  width: 68,
-                  height: 68,
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1D8),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: const Icon(
+                  Icons.local_fire_department_rounded,
+                  color: Color(0xFFF28C28),
+                  size: 28,
+                ),
+              ),
 
-                  child: CircularProgressIndicator(
-                    value: 0.5,
-                    strokeWidth: 7,
+              const SizedBox(width: 13),
 
-                    backgroundColor:
-                    Color(0xFFE9E6F2),
-
-                    valueColor:
-                    AlwaysStoppedAnimation<Color>(
-                      primary,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Today's Daily Task",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: darkText,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    Text(
+                      completedToday
+                          ? 'Daily practice completed! 🎉'
+                          : 'Complete your practice for today.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: secondaryText,
+                      ),
+                    ),
+                  ],
                 ),
+              ),
 
-                const Text(
-                  '1/2',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    color: darkText,
-                  ),
+              // ==================================================
+              // REAL STREAK
+              // ==================================================
+
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 9,
+                  vertical: 6,
                 ),
-              ],
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1ED),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.local_fire_department_rounded,
+                      color: Color(0xFFE56B5D),
+                      size: 16,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      '$_currentStreak',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFFD95C4E),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // ======================================================
+          // TASK COUNT
+          // ======================================================
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                completedToday
+                    ? 'Practice completed'
+                    : 'Practice today',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: darkText,
+                ),
+              ),
+              Text(
+                completedToday ? '1 / 1' : '0 / 1',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: primary,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 9),
+
+          // ======================================================
+          // REAL DAILY TASK BAR
+          // ======================================================
+
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 9,
+              backgroundColor: const Color(0xFFE9E6F2),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                completedToday
+                    ? const Color(0xFF55B97A)
+                    : primary,
+              ),
             ),
           ),
 
-          const SizedBox(width: 18),
+          const SizedBox(height: 10),
 
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
+          // ======================================================
+          // STATUS + XP
+          // ======================================================
 
-              children: [
-                const Text(
-                  'Daily Learning Goal',
+          Row(
+            children: [
+              Icon(
+                completedToday
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                size: 16,
+                color: completedToday
+                    ? const Color(0xFF55B97A)
+                    : secondaryText,
+              ),
+
+              const SizedBox(width: 6),
+
+              Expanded(
+                child: Text(
+                  completedToday
+                      ? 'You completed today\'s task.'
+                      : 'Practice once today to keep your streak going.',
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: darkText,
+                    fontSize: 11,
+                    color: completedToday
+                        ? const Color(0xFF55B97A)
+                        : secondaryText,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
+              ),
 
-                const SizedBox(height: 5),
-
-                Text(
-                  _displayGoal,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: secondaryText,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.bolt_rounded,
+                    size: 16,
+                    color: Color(0xFFF4B400),
                   ),
-                ),
-
-                const SizedBox(height: 9),
-
-                const Text(
-                  '1 lesson remaining',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: primary,
-                    fontWeight: FontWeight.w700,
+                  const SizedBox(width: 3),
+                  Text(
+                    '$_xp XP',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: darkText,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
@@ -905,29 +2003,57 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   Widget _learningPath() {
-    final current = _displayLevel.toLowerCase();
+
+    final beginner =
+    _levelProgress(
+      'Beginner',
+    );
+
+    final intermediate =
+    _levelProgress(
+      'Intermediate',
+    );
+
+    final advanced =
+    _levelProgress(
+      'Advanced',
+    );
+
+    final current =
+    _displayLevel
+        .toLowerCase();
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
 
-      decoration: BoxDecoration(
+      padding:
+      const EdgeInsets.all(18),
+
+      decoration:
+      BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+
+        borderRadius:
+        BorderRadius.circular(
+          22,
+        ),
 
         border: Border.all(
-          color: const Color(0xFFEDEAF4),
+          color:
+          const Color(0xFFEDEAF4),
         ),
       ),
 
       child: Column(
         children: [
+
           _pathRow(
             Icons.looks_one_rounded,
             'Beginner',
             'Build your foundations',
-            Colors.green,
-            current.contains('beginner'),
+            beginner,
+            current ==
+                'beginner',
           ),
 
           _connector(),
@@ -936,8 +2062,9 @@ class _HomeScreenState extends State<HomeScreen> {
             Icons.looks_two_rounded,
             'Intermediate',
             'Build fluency',
-            Colors.orange,
-            current.contains('intermediate'),
+            intermediate,
+            current ==
+                'intermediate',
           ),
 
           _connector(),
@@ -946,8 +2073,9 @@ class _HomeScreenState extends State<HomeScreen> {
             Icons.looks_3_rounded,
             'Advanced',
             'Master communication',
-            Colors.deepPurple,
-            current.contains('advanced'),
+            advanced,
+            current ==
+                'advanced',
           ),
         ],
       ),
@@ -962,78 +2090,139 @@ class _HomeScreenState extends State<HomeScreen> {
       IconData icon,
       String title,
       String subtitle,
-      Color color,
-      bool active,
+      double progress,
+      bool current,
       ) {
+
+    final percentage =
+    (progress * 100)
+        .round();
+
+    final hasLessons =
+        _lessonsForLevel(
+          title,
+        ).isNotEmpty;
+
+    final completed =
+        percentage >= 100;
+
     return Row(
       children: [
+
         Container(
           width: 48,
           height: 48,
 
-          decoration: BoxDecoration(
-            color: active
-                ? color.withValues(alpha: 0.14)
-                : const Color(0xFFF3F1F7),
+          decoration:
+          BoxDecoration(
+            color: current
+                ? primary.withValues(
+              alpha: 0.14,
+            )
+                : completed
+                ? Colors.green
+                .withValues(
+              alpha: 0.14,
+            )
+                : const Color(
+              0xFFF3F1F7,
+            ),
 
-            shape: BoxShape.circle,
+            shape:
+            BoxShape.circle,
           ),
 
           child: Icon(
-            icon,
-            color: active
-                ? color
-                : const Color(0xFF9A96A5),
+            completed
+                ? Icons
+                .check_rounded
+                : icon,
+
+            color: current
+                ? primary
+                : completed
+                ? Colors.green
+                : const Color(
+              0xFF9A96A5,
+            ),
           ),
         ),
 
-        const SizedBox(width: 14),
+        const SizedBox(
+          width: 14,
+        ),
 
         Expanded(
           child: Column(
             crossAxisAlignment:
-            CrossAxisAlignment.start,
+            CrossAxisAlignment
+                .start,
 
             children: [
+
               Row(
                 children: [
+
                   Flexible(
                     child: Text(
                       title,
-                      overflow: TextOverflow.ellipsis,
 
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: active
+                      overflow:
+                      TextOverflow
+                          .ellipsis,
+
+                      style:
+                      TextStyle(
+                        fontWeight:
+                        FontWeight.w800,
+
+                        color: current ||
+                            completed
                             ? darkText
                             : secondaryText,
                       ),
                     ),
                   ),
 
-                  if (active) ...[
-                    const SizedBox(width: 8),
+                  if (current) ...[
+                    const SizedBox(
+                      width: 8,
+                    ),
 
                     Container(
                       padding:
-                      const EdgeInsets.symmetric(
+                      const EdgeInsets
+                          .symmetric(
                         horizontal: 7,
                         vertical: 3,
                       ),
 
-                      decoration: BoxDecoration(
+                      decoration:
+                      BoxDecoration(
                         color:
-                        color.withValues(alpha: 0.12),
+                        primary.withValues(
+                          alpha: 0.12,
+                        ),
+
                         borderRadius:
-                        BorderRadius.circular(8),
+                        BorderRadius
+                            .circular(
+                          8,
+                        ),
                       ),
 
-                      child: Text(
+                      child:
+                      const Text(
                         'CURRENT',
-                        style: TextStyle(
-                          color: color,
+
+                        style:
+                        TextStyle(
+                          color:
+                          primary,
                           fontSize: 8,
-                          fontWeight: FontWeight.w900,
+                          fontWeight:
+                          FontWeight
+                              .w900,
                         ),
                       ),
                     ),
@@ -1041,29 +2230,77 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
 
-              const SizedBox(height: 3),
+              const SizedBox(
+                height: 3,
+              ),
 
               Text(
-                subtitle,
-                style: const TextStyle(
+                hasLessons
+                    ? '$percentage% complete'
+                    : subtitle,
+
+                style:
+                const TextStyle(
                   fontSize: 11,
-                  color: secondaryText,
+                  color:
+                  secondaryText,
                 ),
               ),
+
+              if (hasLessons) ...[
+                const SizedBox(
+                  height: 6,
+                ),
+
+                ClipRRect(
+                  borderRadius:
+                  BorderRadius
+                      .circular(
+                    5,
+                  ),
+
+                  child:
+                  LinearProgressIndicator(
+                    value:
+                    progress,
+
+                    minHeight: 5,
+
+                    backgroundColor:
+                    const Color(
+                      0xFFE9E6F2,
+                    ),
+
+                    valueColor:
+                    AlwaysStoppedAnimation<
+                        Color>(
+                      current
+                          ? primary
+                          : Colors.green,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
 
-        Icon(
-          active
-              ? Icons.check_circle_rounded
-              : Icons.lock_outline_rounded,
+        const SizedBox(
+          width: 10,
+        ),
 
-          color: active
-              ? color
-              : const Color(0xFFB7B3C0),
+        Text(
+          '$percentage%',
 
-          size: 22,
+          style:
+          TextStyle(
+            fontSize: 11,
+            fontWeight:
+            FontWeight.w800,
+            color: current
+                ? primary
+                : secondaryText,
+          ),
         ),
       ],
     );
@@ -1074,8 +2311,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   Widget _connector() {
+
     return Container(
-      margin: const EdgeInsets.only(
+      margin:
+      const EdgeInsets.only(
         left: 23,
         top: 4,
         bottom: 4,
@@ -1084,7 +2323,8 @@ class _HomeScreenState extends State<HomeScreen> {
       height: 20,
       width: 2,
 
-      color: const Color(0xFFE2DFEA),
+      color:
+      const Color(0xFFE2DFEA),
     );
   }
 
@@ -1093,61 +2333,105 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   Widget _practiceCard() {
+
     return GestureDetector(
-      onTap: _openPractice,
+      onTap:
+      _openPractice,
 
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(18),
 
-        decoration: BoxDecoration(
-          color: const Color(0xFFF2EFFB),
-          borderRadius: BorderRadius.circular(22),
+        padding:
+        const EdgeInsets.all(
+          18,
+        ),
+
+        decoration:
+        BoxDecoration(
+          color:
+          const Color(
+            0xFFF2EFFB,
+          ),
+
+          borderRadius:
+          BorderRadius.circular(
+            22,
+          ),
         ),
 
         child: Row(
           children: [
+
             Container(
               width: 56,
               height: 56,
 
-              decoration: BoxDecoration(
-                color: Colors.white,
+              decoration:
+              BoxDecoration(
+                color:
+                Colors.white,
+
                 borderRadius:
-                BorderRadius.circular(17),
+                BorderRadius
+                    .circular(
+                  17,
+                ),
               ),
 
-              child: const Icon(
-                Icons.sports_esports_rounded,
+              child:
+              const Icon(
+                Icons
+                    .sports_esports_rounded,
                 color: primary,
                 size: 29,
               ),
             ),
 
-            const SizedBox(width: 15),
+            const SizedBox(
+              width: 15,
+            ),
 
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment:
-                CrossAxisAlignment.start,
+                CrossAxisAlignment
+                    .start,
 
                 children: [
+
                   Text(
-                    'Practice Signs',
-                    style: TextStyle(
+                    _continueLesson == null
+                        ? 'Practice Signs'
+                        : 'Practice $_continueLessonTitle',
+
+                    maxLines: 1,
+
+                    overflow:
+                    TextOverflow
+                        .ellipsis,
+
+                    style:
+                    const TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: darkText,
+                      fontWeight:
+                      FontWeight.w800,
+                      color:
+                      darkText,
                     ),
                   ),
 
-                  SizedBox(height: 4),
+                  const SizedBox(
+                    height: 4,
+                  ),
 
-                  Text(
-                    'Review what you have learned',
-                    style: TextStyle(
+                  const Text(
+                    'Practice what you have learned',
+
+                    style:
+                    TextStyle(
                       fontSize: 12,
-                      color: secondaryText,
+                      color:
+                      secondaryText,
                     ),
                   ),
                 ],
@@ -1158,15 +2442,23 @@ class _HomeScreenState extends State<HomeScreen> {
               width: 38,
               height: 38,
 
-              decoration: BoxDecoration(
-                color: primary,
+              decoration:
+              BoxDecoration(
+                color:
+                primary,
+
                 borderRadius:
-                BorderRadius.circular(13),
+                BorderRadius.circular(
+                  13,
+                ),
               ),
 
-              child: const Icon(
-                Icons.arrow_forward_rounded,
-                color: Colors.white,
+              child:
+              const Icon(
+                Icons
+                    .arrow_forward_rounded,
+                color:
+                Colors.white,
                 size: 20,
               ),
             ),
@@ -1181,44 +2473,70 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   Widget _motivationCard() {
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
 
-      decoration: BoxDecoration(
-        color: darkText,
-        borderRadius: BorderRadius.circular(22),
+      padding:
+      const EdgeInsets.all(
+        20,
       ),
 
-      child: const Column(
+      decoration:
+      BoxDecoration(
+        color: darkText,
+
+        borderRadius:
+        BorderRadius.circular(
+          22,
+        ),
+      ),
+
+      child:
+      const Column(
         crossAxisAlignment:
-        CrossAxisAlignment.start,
+        CrossAxisAlignment
+            .start,
 
         children: [
+
           Icon(
-            Icons.format_quote_rounded,
-            color: Colors.white54,
+            Icons
+                .format_quote_rounded,
+            color:
+            Colors.white54,
             size: 30,
           ),
 
-          SizedBox(height: 6),
+          SizedBox(
+            height: 6,
+          ),
 
           Text(
             'Every sign you learn brings you closer to communicating without barriers.',
-            style: TextStyle(
-              color: Colors.white,
+
+            style:
+            TextStyle(
+              color:
+              Colors.white,
               fontSize: 16,
               height: 1.5,
-              fontWeight: FontWeight.w600,
+              fontWeight:
+              FontWeight.w600,
             ),
           ),
 
-          SizedBox(height: 12),
+          SizedBox(
+            height: 12,
+          ),
 
           Text(
             'Keep learning. Keep connecting.',
-            style: TextStyle(
-              color: Colors.white60,
+
+            style:
+            TextStyle(
+              color:
+              Colors.white60,
               fontSize: 12,
             ),
           ),
@@ -1236,30 +2554,42 @@ class _HomeScreenState extends State<HomeScreen> {
       String action,
       VoidCallback onTap,
       ) {
+
     return Row(
       mainAxisAlignment:
-      MainAxisAlignment.spaceBetween,
+      MainAxisAlignment
+          .spaceBetween,
 
       children: [
+
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
+
+            style:
+            const TextStyle(
               fontSize: 19,
-              fontWeight: FontWeight.w900,
-              color: darkText,
+              fontWeight:
+              FontWeight.w900,
+              color:
+              darkText,
             ),
           ),
         ),
 
         TextButton(
-          onPressed: onTap,
+          onPressed:
+          onTap,
 
-          child: Text(
+          child:
+          Text(
             action,
-            style: const TextStyle(
+
+            style:
+            const TextStyle(
               color: primary,
-              fontWeight: FontWeight.w700,
+              fontWeight:
+              FontWeight.w700,
             ),
           ),
         ),
@@ -1277,62 +2607,87 @@ class _HomeScreenState extends State<HomeScreen> {
       bool selected,
       VoidCallback onTap,
       ) {
-    return GestureDetector(
-      onTap: onTap,
 
-      behavior: HitTestBehavior.opaque,
+    return GestureDetector(
+      onTap:
+      onTap,
+
+      behavior:
+      HitTestBehavior.opaque,
 
       child: Padding(
-        padding: const EdgeInsets.symmetric(
+        padding:
+        const EdgeInsets
+            .symmetric(
           horizontal: 12,
           vertical: 5,
         ),
 
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize:
+          MainAxisSize.min,
 
           children: [
+
             AnimatedContainer(
               duration:
-              const Duration(milliseconds: 200),
+              const Duration(
+                milliseconds: 200,
+              ),
 
-              width: selected ? 48 : 42,
+              width:
+              selected
+                  ? 48
+                  : 42,
+
               height: 32,
 
-              decoration: BoxDecoration(
+              decoration:
+              BoxDecoration(
                 color: selected
                     ? lightPrimary
                     : Colors.transparent,
 
                 borderRadius:
-                BorderRadius.circular(14),
+                BorderRadius.circular(
+                  14,
+                ),
               ),
 
               child: Icon(
                 icon,
+
                 size: 22,
 
                 color: selected
                     ? primary
-                    : const Color(0xFF8A8695),
+                    : const Color(
+                  0xFF8A8695,
+                ),
               ),
             ),
 
-            const SizedBox(height: 3),
+            const SizedBox(
+              height: 3,
+            ),
 
             Text(
               label,
 
-              style: TextStyle(
+              style:
+              TextStyle(
                 fontSize: 10,
 
-                fontWeight: selected
+                fontWeight:
+                selected
                     ? FontWeight.w800
                     : FontWeight.w500,
 
                 color: selected
                     ? primary
-                    : const Color(0xFF8A8695),
+                    : const Color(
+                  0xFF8A8695,
+                ),
               ),
             ),
           ],

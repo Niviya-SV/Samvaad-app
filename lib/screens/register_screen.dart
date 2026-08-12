@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'learner_details_screen.dart';
+
+import '../services/api_service.dart';
 import 'login_screen.dart';
+import 'otp_verification_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -10,9 +12,9 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // ----------------------------------------------------------
+  // ==========================================================
   // CONTROLLERS
-  // ----------------------------------------------------------
+  // ==========================================================
 
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -21,43 +23,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   final _formKey = GlobalKey<FormState>();
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // STATE
-  // ----------------------------------------------------------
+  // ==========================================================
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _acceptedTerms = false;
   bool _isLoading = false;
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // REGEX
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  // Name:
-  // Letters, spaces, apostrophes and hyphens.
   final RegExp _nameRegex = RegExp(
     r"^[a-zA-Z][a-zA-Z\s'-]{1,49}$",
   );
 
-  // Email.
   final RegExp _emailRegex = RegExp(
     r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
   );
 
-  // Password:
-  // Minimum 8 characters
-  // At least 1 uppercase
-  // At least 1 lowercase
-  // At least 1 number
-  // At least 1 special character
   final RegExp _passwordRegex = RegExp(
     r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$',
   );
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // DISPOSE
-  // ----------------------------------------------------------
+  // ==========================================================
 
   @override
   void dispose() {
@@ -69,17 +62,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // REGISTER
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  void _register() {
-    // Validate fields.
+  Future<void> _register() async {
+    // ----------------------------------------------------------
+    // VALIDATE FORM
+    // ----------------------------------------------------------
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    // Check terms.
+    // ----------------------------------------------------------
+    // CHECK TERMS
+    // ----------------------------------------------------------
+
     if (!_acceptedTerms) {
       _showMessage(
         'Please accept the Terms and Conditions.',
@@ -91,38 +90,86 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _isLoading = true;
     });
 
-    // For now this is frontend only.
-    //
-    // Later we will connect Supabase authentication here.
-    //
-    // After successful registration:
-    // Register → Learner Details
+    final name = _nameController.text.trim();
 
-    Future.delayed(
-      const Duration(milliseconds: 500),
-          () {
-        if (!mounted) return;
+    final email =
+    _emailController.text.trim().toLowerCase();
 
-        setState(() {
-          _isLoading = false;
-        });
+    final password =
+        _passwordController.text;
 
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => LearnerDetailsScreen(
-              name: _nameController.text.trim(),
-              email: _emailController.text.trim(),
-            ),
+    try {
+      // ========================================================
+      // CALL SPRING BOOT REGISTER API
+      // ========================================================
+
+      final result = await ApiService.register(
+        name,
+        email,
+        password,
+      );
+
+      if (!mounted) return;
+
+      // --------------------------------------------------------
+      // STOP LOADING
+      // --------------------------------------------------------
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      // --------------------------------------------------------
+      // GET BACKEND MESSAGE
+      // --------------------------------------------------------
+
+      final message =
+          result['message']?.toString() ??
+              'Registration successful. OTP sent to your email.';
+
+      // --------------------------------------------------------
+      // SHOW SUCCESS
+      // --------------------------------------------------------
+
+      _showMessage(message);
+
+      // ========================================================
+      // GO TO OTP VERIFICATION SCREEN
+      // ========================================================
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OtpVerificationScreen(
+            name: name,
+            email: email,
           ),
-        );
-      },
-    );
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      // --------------------------------------------------------
+      // SHOW BACKEND ERROR
+      // --------------------------------------------------------
+
+      String message = e.toString();
+
+      if (message.startsWith('Exception: ')) {
+        message = message.substring(11);
+      }
+
+      _showMessage(message);
+    }
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // MESSAGE
-  // ----------------------------------------------------------
+  // ==========================================================
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -137,9 +184,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // INPUT DECORATION
-  // ----------------------------------------------------------
+  // ==========================================================
 
   InputDecoration _inputDecoration({
     required String label,
@@ -205,18 +252,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // BUILD
-  // ----------------------------------------------------------
+  // ==========================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFFFBF5),
 
-      // ------------------------------------------------------
+      // ========================================================
       // APP BAR
-      // ------------------------------------------------------
+      // ========================================================
 
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -234,9 +281,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
 
-      // ------------------------------------------------------
+      // ========================================================
       // BODY
-      // ------------------------------------------------------
+      // ========================================================
 
       body: SafeArea(
         child: Form(
@@ -251,12 +298,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
 
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
 
               children: [
-                // ------------------------------------------------
+
+                // ==================================================
                 // HEADER
-                // ------------------------------------------------
+                // ==================================================
 
                 const Text(
                   'Create your account',
@@ -280,9 +329,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 const SizedBox(height: 32),
 
-                // ------------------------------------------------
+                // ==================================================
                 // NAME
-                // ------------------------------------------------
+                // ==================================================
 
                 const Text(
                   'Full Name',
@@ -301,16 +350,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   textCapitalization:
                   TextCapitalization.words,
 
-                  keyboardType: TextInputType.name,
+                  keyboardType:
+                  TextInputType.name,
 
                   decoration: _inputDecoration(
                     label: 'Name',
                     hint: 'Enter your full name',
-                    icon: Icons.person_outline_rounded,
+                    icon:
+                    Icons.person_outline_rounded,
                   ),
 
                   validator: (value) {
-                    final name = value?.trim() ?? '';
+                    final name =
+                        value?.trim() ?? '';
 
                     if (name.isEmpty) {
                       return 'Please enter your name';
@@ -326,9 +378,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 const SizedBox(height: 20),
 
-                // ------------------------------------------------
+                // ==================================================
                 // EMAIL
-                // ------------------------------------------------
+                // ==================================================
 
                 const Text(
                   'Email Address',
@@ -352,11 +404,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   decoration: _inputDecoration(
                     label: 'Email',
                     hint: 'example@email.com',
-                    icon: Icons.email_outlined,
+                    icon:
+                    Icons.email_outlined,
                   ),
 
                   validator: (value) {
-                    final email = value?.trim() ?? '';
+                    final email =
+                        value?.trim() ?? '';
 
                     if (email.isEmpty) {
                       return 'Please enter your email';
@@ -372,9 +426,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 const SizedBox(height: 20),
 
-                // ------------------------------------------------
+                // ==================================================
                 // PASSWORD
-                // ------------------------------------------------
+                // ==================================================
 
                 const Text(
                   'Password',
@@ -388,16 +442,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 8),
 
                 TextFormField(
-                  controller: _passwordController,
+                  controller:
+                  _passwordController,
 
-                  obscureText: _obscurePassword,
+                  obscureText:
+                  _obscurePassword,
 
                   decoration: _inputDecoration(
                     label: 'Password',
-                    hint: 'Create a strong password',
-                    icon: Icons.lock_outline_rounded,
+                    hint:
+                    'Create a strong password',
+                    icon:
+                    Icons.lock_outline_rounded,
 
-                    suffixIcon: IconButton(
+                    suffixIcon:
+                    IconButton(
                       onPressed: () {
                         setState(() {
                           _obscurePassword =
@@ -407,23 +466,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                       icon: Icon(
                         _obscurePassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        color: const Color(0xFF777282),
+                            ? Icons
+                            .visibility_off_outlined
+                            : Icons
+                            .visibility_outlined,
+
+                        color:
+                        const Color(
+                          0xFF777282,
+                        ),
                       ),
                     ),
                   ),
 
                   validator: (value) {
-                    final password = value ?? '';
+                    final password =
+                        value ?? '';
 
                     if (password.isEmpty) {
                       return 'Please enter a password';
                     }
 
-                    if (!_passwordRegex.hasMatch(
-                      password,
-                    )) {
+                    if (!_passwordRegex
+                        .hasMatch(password)) {
                       return 'Use 8+ chars, uppercase, lowercase, number & symbol';
                     }
 
@@ -443,9 +508,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 const SizedBox(height: 20),
 
-                // ------------------------------------------------
+                // ==================================================
                 // CONFIRM PASSWORD
-                // ------------------------------------------------
+                // ==================================================
 
                 const Text(
                   'Confirm Password',
@@ -467,10 +532,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   decoration: _inputDecoration(
                     label: 'Confirm Password',
-                    hint: 'Re-enter your password',
-                    icon: Icons.lock_reset_outlined,
+                    hint:
+                    'Re-enter your password',
+                    icon:
+                    Icons.lock_reset_outlined,
 
-                    suffixIcon: IconButton(
+                    suffixIcon:
+                    IconButton(
                       onPressed: () {
                         setState(() {
                           _obscureConfirmPassword =
@@ -480,9 +548,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                       icon: Icon(
                         _obscureConfirmPassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        color: const Color(0xFF777282),
+                            ? Icons
+                            .visibility_off_outlined
+                            : Icons
+                            .visibility_outlined,
+
+                        color:
+                        const Color(
+                          0xFF777282,
+                        ),
                       ),
                     ),
                   ),
@@ -506,9 +580,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 const SizedBox(height: 22),
 
-                // ------------------------------------------------
+                // ==================================================
                 // TERMS
-                // ------------------------------------------------
+                // ==================================================
 
                 Row(
                   crossAxisAlignment:
@@ -521,7 +595,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       activeColor:
                       const Color(0xFF6C63A8),
 
-                      shape: RoundedRectangleBorder(
+                      shape:
+                      RoundedRectangleBorder(
                         borderRadius:
                         BorderRadius.circular(5),
                       ),
@@ -537,14 +612,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const Expanded(
                       child: Padding(
                         padding:
-                        EdgeInsets.only(top: 11),
+                        EdgeInsets.only(
+                          top: 11,
+                        ),
 
                         child: Text(
                           'I agree to the Terms and Conditions and Privacy Policy.',
                           style: TextStyle(
                             fontSize: 13,
                             height: 1.4,
-                            color: Color(0xFF666274),
+                            color:
+                            Color(0xFF666274),
                           ),
                         ),
                       ),
@@ -554,9 +632,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 const SizedBox(height: 24),
 
-                // ------------------------------------------------
+                // ==================================================
                 // CREATE ACCOUNT BUTTON
-                // ------------------------------------------------
+                // ==================================================
 
                 SizedBox(
                   width: double.infinity,
@@ -564,20 +642,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   child: FilledButton(
                     onPressed:
-                    _isLoading ? null : _register,
+                    _isLoading
+                        ? null
+                        : _register,
 
-                    style: FilledButton.styleFrom(
+                    style:
+                    FilledButton.styleFrom(
                       backgroundColor:
-                      const Color(0xFF6C63A8),
+                      const Color(
+                        0xFF6C63A8,
+                      ),
 
-                      foregroundColor: Colors.white,
+                      foregroundColor:
+                      Colors.white,
 
                       disabledBackgroundColor:
-                      const Color(0xFFB8B4CA),
+                      const Color(
+                        0xFFB8B4CA,
+                      ),
 
-                      shape: RoundedRectangleBorder(
+                      shape:
+                      RoundedRectangleBorder(
                         borderRadius:
-                        BorderRadius.circular(18),
+                        BorderRadius.circular(
+                          18,
+                        ),
                       ),
                     ),
 
@@ -589,7 +678,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       child:
                       CircularProgressIndicator(
                         strokeWidth: 2.5,
-                        color: Colors.white,
+                        color:
+                        Colors.white,
                       ),
                     )
                         : const Text(
@@ -605,9 +695,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 const SizedBox(height: 24),
 
-                // ------------------------------------------------
+                // ==================================================
                 // LOGIN
-                // ------------------------------------------------
+                // ==================================================
 
                 Center(
                   child: TextButton(
@@ -615,7 +705,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const LoginScreen(),
+                          builder: (_) =>
+                          const LoginScreen(),
                         ),
                       );
                     },
@@ -623,8 +714,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: const Text(
                       'Already have an account? Login',
                       style: TextStyle(
-                        color: Color(0xFF6C63A8),
-                        fontWeight: FontWeight.w700,
+                        color:
+                        Color(0xFF6C63A8),
+                        fontWeight:
+                        FontWeight.w700,
                       ),
                     ),
                   ),
@@ -632,16 +725,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 const SizedBox(height: 12),
 
-                // ------------------------------------------------
+                // ==================================================
                 // FOOTER
-                // ------------------------------------------------
+                // ==================================================
 
                 const Center(
                   child: Text(
                     'Samvaad • Learn. Practice. Connect.',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF8A8695),
+                      color:
+                      Color(0xFF8A8695),
                     ),
                   ),
                 ),

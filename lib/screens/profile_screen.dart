@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/app_storage.dart';
+import 'achievements_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String learnerName;
@@ -659,9 +660,97 @@ class _ProfileScreenState
 
               const SizedBox(height: 30),
 
-              // ==================================================
-              // SAVE
-              // ==================================================
+// ==================================================
+// ACHIEVEMENTS
+// ==================================================
+
+              const Text(
+                'Achievements',
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                  color: darkText,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AchievementsScreen(),
+                    ),
+                  );
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: const Color(0xFFE4E0EC),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF4D8),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.emoji_events_rounded,
+                          color: Color(0xFFE5A83B),
+                          size: 27,
+                        ),
+                      ),
+
+                      const SizedBox(width: 14),
+
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'My Achievements',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: darkText,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'View your unlocked achievements and rewards',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: secondaryText,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        color: secondaryText,
+                        size: 17,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+// ==================================================
+// SAVE
+// ==================================================
 
               SizedBox(
                 width: double.infinity,

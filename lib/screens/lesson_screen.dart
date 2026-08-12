@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/app_storage.dart';
+import '../services/api_service.dart';
 import 'practice_screen.dart';
 
 class LessonScreen extends StatefulWidget {
@@ -25,6 +27,7 @@ class LessonScreen extends StatefulWidget {
 
 class _LessonScreenState extends State<LessonScreen> {
   int currentIndex = 0;
+  bool _isCompleting = false;
 
   late final List<LessonItem> lessonItems;
 
@@ -76,38 +79,323 @@ class _LessonScreenState extends State<LessonScreen> {
   }
 
   // ============================================================
+  // GET JWT TOKEN
+  // ============================================================
+
+  Future<String?> _getToken() async {
+    /*
+     * IMPORTANT:
+     * LoginScreen saves the JWT using:
+     *
+     *     SharedPreferencesAsync()
+     *     'jwt_token'
+     *
+     * So LessonScreen must read the same key
+     * using the same SharedPreferences API.
+     */
+
+    final prefs = SharedPreferencesAsync();
+
+    final token = await prefs.getString('jwt_token');
+
+    debugPrint('========================================');
+    debugPrint('LESSON SCREEN TOKEN CHECK');
+    debugPrint(
+      'Token exists: ${token != null && token.isNotEmpty}',
+    );
+    debugPrint(
+      'Token length: ${token?.length ?? 0}',
+    );
+    debugPrint('========================================');
+
+    return token;
+  }
+
+  // ============================================================
+  // FIND BACKEND LESSON ID
+  // ============================================================
+
+  Future<int?> _findBackendLessonId(String token) async {
+    debugPrint('========================================');
+    debugPrint('GETTING LESSONS FROM BACKEND');
+    debugPrint('========================================');
+
+    final lessons = await ApiService.getLessons(token);
+
+    debugPrint('Backend lessons response: $lessons');
+
+    if (lessons.isEmpty) {
+      debugPrint('No lessons returned from backend.');
+      return null;
+    }
+
+    final currentLevel =
+    widget.level.trim().toLowerCase();
+
+    final chapterNumber = widget.chapterNumber;
+
+    final firstSign = lessonItems.isNotEmpty
+        ? lessonItems.first.word.trim().toLowerCase()
+        : '';
+
+    debugPrint('Current level: $currentLevel');
+    debugPrint('Chapter number: $chapterNumber');
+    debugPrint('First sign: $firstSign');
+
+    // ==========================================================
+    // MATCH USING LEVEL + LESSON ORDER
+    // ==========================================================
+
+    for (final item in lessons) {
+      if (item is! Map) continue;
+
+      final lesson =
+      Map<String, dynamic>.from(item);
+
+      final level =
+          lesson['level']
+              ?.toString()
+              .trim()
+              .toLowerCase() ??
+              '';
+
+      final order = int.tryParse(
+        lesson['lessonOrder']?.toString() ?? '',
+      );
+
+      final id = int.tryParse(
+        lesson['id']?.toString() ?? '',
+      );
+
+      debugPrint(
+        'Checking lesson: '
+            'id=$id, '
+            'level=$level, '
+            'lessonOrder=$order',
+      );
+
+      if (id != null &&
+          level == currentLevel &&
+          order == chapterNumber) {
+        debugPrint(
+          'MATCH FOUND USING lessonOrder. ID=$id',
+        );
+
+        return id;
+      }
+    }
+
+    // ==========================================================
+    // FALLBACK: LEVEL + CHAPTER
+    // ==========================================================
+
+    for (final item in lessons) {
+      if (item is! Map) continue;
+
+      final lesson =
+      Map<String, dynamic>.from(item);
+
+      final level =
+          lesson['level']
+              ?.toString()
+              .trim()
+              .toLowerCase() ??
+              '';
+
+      final chapter = int.tryParse(
+        lesson['chapter']?.toString() ?? '',
+      );
+
+      final id = int.tryParse(
+        lesson['id']?.toString() ?? '',
+      );
+
+      if (id != null &&
+          level == currentLevel &&
+          chapter == chapterNumber) {
+        debugPrint(
+          'MATCH FOUND USING chapter. ID=$id',
+        );
+
+        return id;
+      }
+    }
+
+    // ==========================================================
+    // FINAL FALLBACK: TITLE
+    // ==========================================================
+
+    for (final item in lessons) {
+      if (item is! Map) continue;
+
+      final lesson =
+      Map<String, dynamic>.from(item);
+
+      final title =
+          lesson['title']
+              ?.toString()
+              .trim()
+              .toLowerCase() ??
+              '';
+
+      final id = int.tryParse(
+        lesson['id']?.toString() ?? '',
+      );
+
+      if (id != null && title == firstSign) {
+        debugPrint(
+          'MATCH FOUND USING TITLE. ID=$id',
+        );
+
+        return id;
+      }
+    }
+
+    debugPrint(
+      'NO MATCHING BACKEND LESSON FOUND.',
+    );
+
+    return null;
+  }
+
+  // ============================================================
   // COMPLETE LESSON
   // ============================================================
 
   Future<void> _completeLesson() async {
-    // IMPORTANT:
-    // Save completion BEFORE opening the completion screen.
-    await AppStorage.saveChapterCompleted(
-      widget.level,
-      widget.chapterNumber,
-    );
+    if (_isCompleting) return;
 
-    await AppStorage.saveChapterProgress(
-      widget.level,
-      widget.chapterNumber,
-      1.0,
-    );
+    setState(() {
+      _isCompleting = true;
+    });
 
-    if (!mounted) return;
+    try {
+      debugPrint('');
+      debugPrint('========================================');
+      debugPrint('STARTING LESSON COMPLETION');
+      debugPrint('========================================');
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => LessonCompleteScreen(
-          level: widget.level,
-          chapterTitle: widget.chapterTitle,
-          chapterNumber: widget.chapterNumber,
-          xp: widget.xp,
-          itemCount: lessonItems.length,
+      // ========================================================
+      // GET TOKEN
+      // ========================================================
+
+      final token = await _getToken();
+
+      if (token == null || token.isEmpty) {
+        throw Exception(
+          'Login session not found. Please login again.',
+        );
+      }
+
+      debugPrint('JWT token found successfully.');
+
+      // ========================================================
+      // FIND BACKEND LESSON
+      // ========================================================
+
+      final lessonId =
+      await _findBackendLessonId(token);
+
+      if (lessonId == null) {
+        throw Exception(
+          'This lesson is not available in the backend yet.',
+        );
+      }
+
+      debugPrint(
+        'Completing backend lesson ID: $lessonId',
+      );
+
+      // ========================================================
+      // CALL BACKEND
+      // ========================================================
+
+      final result =
+      await ApiService.completeLesson(
+        token,
+        lessonId,
+        score: 100,
+      );
+
+      debugPrint(
+        'Lesson completion response: $result',
+      );
+
+      // ========================================================
+      // SAVE LOCAL PROGRESS
+      // ========================================================
+
+      await AppStorage.saveChapterCompleted(
+        widget.level,
+        widget.chapterNumber,
+      );
+
+      await AppStorage.saveChapterProgress(
+        widget.level,
+        widget.chapterNumber,
+        1.0,
+      );
+
+      debugPrint(
+        'Local chapter progress saved.',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isCompleting = false;
+      });
+
+      // ========================================================
+      // GO TO COMPLETE SCREEN
+      // ========================================================
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LessonCompleteScreen(
+            level: widget.level,
+            chapterTitle: widget.chapterTitle,
+            chapterNumber: widget.chapterNumber,
+            xp: widget.xp,
+            itemCount: lessonItems.length,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      debugPrint('');
+      debugPrint('========================================');
+      debugPrint('LESSON COMPLETION ERROR');
+      debugPrint('$e');
+      debugPrint('========================================');
+
+      if (!mounted) return;
+
+      setState(() {
+        _isCompleting = false;
+      });
+
+      String message = e.toString();
+
+      if (message.startsWith('Exception: ')) {
+        message = message.substring(11);
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not complete lesson: $message',
+          ),
+          backgroundColor: Colors.redAccent,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -133,7 +421,8 @@ class _LessonScreenState extends State<LessonScreen> {
         ),
 
         title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+          CrossAxisAlignment.start,
           children: [
             Text(
               widget.chapterTitle,
@@ -155,14 +444,17 @@ class _LessonScreenState extends State<LessonScreen> {
 
         actions: [
           Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(
+            margin:
+            const EdgeInsets.only(right: 16),
+            padding:
+            const EdgeInsets.symmetric(
               horizontal: 12,
               vertical: 7,
             ),
             decoration: BoxDecoration(
               color: const Color(0xFFFFF1CF),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius:
+              BorderRadius.circular(20),
             ),
             child: Row(
               children: [
@@ -194,7 +486,8 @@ class _LessonScreenState extends State<LessonScreen> {
             // ==================================================
 
             Padding(
-              padding: const EdgeInsets.symmetric(
+              padding:
+              const EdgeInsets.symmetric(
                 horizontal: 20,
               ),
               child: Row(
@@ -203,19 +496,23 @@ class _LessonScreenState extends State<LessonScreen> {
                     child: ClipRRect(
                       borderRadius:
                       BorderRadius.circular(20),
-                      child: LinearProgressIndicator(
+                      child:
+                      LinearProgressIndicator(
                         value: progress,
                         minHeight: 7,
                         backgroundColor:
                         const Color(0xFFE9E5EC),
                         valueColor:
-                        const AlwaysStoppedAnimation<Color>(
+                        const AlwaysStoppedAnimation<
+                            Color>(
                           Color(0xFF6C63A8),
                         ),
                       ),
                     ),
                   ),
+
                   const SizedBox(width: 12),
+
                   Text(
                     '${currentIndex + 1}/${lessonItems.length}',
                     style: const TextStyle(
@@ -234,7 +531,8 @@ class _LessonScreenState extends State<LessonScreen> {
 
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(
+                padding:
+                const EdgeInsets.fromLTRB(
                   20,
                   22,
                   20,
@@ -286,11 +584,13 @@ class _LessonScreenState extends State<LessonScreen> {
                       width: double.infinity,
                       height: 270,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEDE9FA),
+                        color:
+                        const Color(0xFFEDE9FA),
                         borderRadius:
                         BorderRadius.circular(28),
                         border: Border.all(
-                          color: const Color(0xFFDED8EF),
+                          color:
+                          const Color(0xFFDED8EF),
                         ),
                       ),
                       child: Column(
@@ -309,7 +609,9 @@ class _LessonScreenState extends State<LessonScreen> {
                               currentItem.icon,
                               size: 58,
                               color:
-                              const Color(0xFF6C63A8),
+                              const Color(
+                                0xFF6C63A8,
+                              ),
                             ),
                           ),
 
@@ -319,8 +621,10 @@ class _LessonScreenState extends State<LessonScreen> {
                             'Teaching avatar',
                             style: TextStyle(
                               fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF6C63A8),
+                              fontWeight:
+                              FontWeight.w800,
+                              color:
+                              Color(0xFF6C63A8),
                             ),
                           ),
 
@@ -330,7 +634,8 @@ class _LessonScreenState extends State<LessonScreen> {
                             'Avatar coming soon',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Color(0xFF898494),
+                              color:
+                              Color(0xFF898494),
                             ),
                           ),
                         ],
@@ -345,13 +650,15 @@ class _LessonScreenState extends State<LessonScreen> {
 
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(18),
+                      padding:
+                      const EdgeInsets.all(18),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius:
                         BorderRadius.circular(20),
                         border: Border.all(
-                          color: const Color(0xFFE7E2EC),
+                          color:
+                          const Color(0xFFE7E2EC),
                         ),
                       ),
                       child: Row(
@@ -363,13 +670,16 @@ class _LessonScreenState extends State<LessonScreen> {
                             height: 38,
                             decoration:
                             const BoxDecoration(
-                              color: Color(0xFFEDE9FA),
+                              color:
+                              Color(0xFFEDE9FA),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
-                              Icons.lightbulb_outline_rounded,
+                              Icons
+                                  .lightbulb_outline_rounded,
                               size: 21,
-                              color: Color(0xFF6C63A8),
+                              color:
+                              Color(0xFF6C63A8),
                             ),
                           ),
 
@@ -378,7 +688,8 @@ class _LessonScreenState extends State<LessonScreen> {
                           Expanded(
                             child: Column(
                               crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                              CrossAxisAlignment
+                                  .start,
                               children: [
                                 const Text(
                                   'Remember',
@@ -387,7 +698,9 @@ class _LessonScreenState extends State<LessonScreen> {
                                     fontWeight:
                                     FontWeight.w800,
                                     color:
-                                    Color(0xFF29263D),
+                                    Color(
+                                      0xFF29263D,
+                                    ),
                                   ),
                                 ),
 
@@ -395,11 +708,14 @@ class _LessonScreenState extends State<LessonScreen> {
 
                                 Text(
                                   currentItem.tip,
-                                  style: const TextStyle(
+                                  style:
+                                  const TextStyle(
                                     fontSize: 12,
                                     height: 1.45,
                                     color:
-                                    Color(0xFF777281),
+                                    Color(
+                                      0xFF777281,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -420,7 +736,8 @@ class _LessonScreenState extends State<LessonScreen> {
             // ==========================================================
 
             Container(
-              padding: const EdgeInsets.fromLTRB(
+              padding:
+              const EdgeInsets.fromLTRB(
                 20,
                 10,
                 20,
@@ -433,19 +750,27 @@ class _LessonScreenState extends State<LessonScreen> {
                     width: 52,
                     height: 52,
                     child: OutlinedButton(
-                      onPressed: currentIndex == 0
+                      onPressed:
+                      currentIndex == 0 ||
+                          _isCompleting
                           ? null
                           : _previousLesson,
-                      style: OutlinedButton.styleFrom(
+                      style:
+                      OutlinedButton.styleFrom(
                         foregroundColor:
-                        const Color(0xFF6C63A8),
+                        const Color(
+                          0xFF6C63A8,
+                        ),
                         side: const BorderSide(
-                          color: Color(0xFFD9D3E7),
+                          color:
+                          Color(0xFFD9D3E7),
                         ),
                         shape:
                         RoundedRectangleBorder(
                           borderRadius:
-                          BorderRadius.circular(16),
+                          BorderRadius.circular(
+                            16,
+                          ),
                         ),
                         padding: EdgeInsets.zero,
                       ),
@@ -461,39 +786,66 @@ class _LessonScreenState extends State<LessonScreen> {
                     child: SizedBox(
                       height: 52,
                       child: FilledButton(
-                        onPressed: _nextLesson,
-                        style: FilledButton.styleFrom(
+                        onPressed:
+                        _isCompleting
+                            ? null
+                            : _nextLesson,
+                        style:
+                        FilledButton.styleFrom(
                           backgroundColor:
-                          const Color(0xFF6C63A8),
-                          foregroundColor: Colors.white,
+                          const Color(
+                            0xFF6C63A8,
+                          ),
+                          foregroundColor:
+                          Colors.white,
                           shape:
                           RoundedRectangleBorder(
                             borderRadius:
-                            BorderRadius.circular(16),
+                            BorderRadius.circular(
+                              16,
+                            ),
                           ),
                         ),
                         child: Row(
                           mainAxisAlignment:
                           MainAxisAlignment.center,
                           children: [
-                            Text(
-                              isLastItem
-                                  ? 'Complete Lesson'
-                                  : 'Next Sign',
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight:
-                                FontWeight.w800,
+                            if (_isCompleting)
+                              const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child:
+                                CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor:
+                                  AlwaysStoppedAnimation<
+                                      Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            else ...[
+                              Text(
+                                isLastItem
+                                    ? 'Complete Lesson'
+                                    : 'Next Sign',
+                                style:
+                                const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight:
+                                  FontWeight.w800,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(
-                              isLastItem
-                                  ? Icons.check_rounded
-                                  : Icons
-                                  .arrow_forward_rounded,
-                              size: 20,
-                            ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                isLastItem
+                                    ? Icons
+                                    .check_rounded
+                                    : Icons
+                                    .arrow_forward_rounded,
+                                size: 20,
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -624,7 +976,8 @@ class LessonContent {
           'Learn a basic affirmative sign.',
           tip:
           'Practice the movement naturally.',
-          icon: Icons.check_circle_outline_rounded,
+          icon:
+          Icons.check_circle_outline_rounded,
         ),
         LessonItem(
           word: 'No',
@@ -648,7 +1001,8 @@ class LessonContent {
           'Learn a common expression of apology.',
           tip:
           'Practice the sign with a natural expression.',
-          icon: Icons.sentiment_dissatisfied_rounded,
+          icon:
+          Icons.sentiment_dissatisfied_rounded,
         ),
         LessonItem(
           word: 'Help',
@@ -996,7 +1350,8 @@ class LessonContent {
           'Practice responding in conversation.',
           tip:
           'Keep the signs connected naturally.',
-          icon: Icons.sentiment_satisfied_alt_rounded,
+          icon:
+          Icons.sentiment_satisfied_alt_rounded,
         ),
         LessonItem(
           word: 'What Is Your Name?',
@@ -1249,10 +1604,12 @@ class LessonCompleteScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFBF5),
+      backgroundColor:
+      const Color(0xFFFFFBF5),
 
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFFBF5),
+        backgroundColor:
+        const Color(0xFFFFFBF5),
         elevation: 0,
         automaticallyImplyLeading: false,
         centerTitle: true,
@@ -1275,7 +1632,8 @@ class LessonCompleteScreen extends StatelessWidget {
               Container(
                 width: 120,
                 height: 120,
-                decoration: const BoxDecoration(
+                decoration:
+                const BoxDecoration(
                   color: Color(0xFFE8F6EC),
                   shape: BoxShape.circle,
                 ),
@@ -1312,13 +1670,15 @@ class LessonCompleteScreen extends StatelessWidget {
 
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(20),
+                padding:
+                const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius:
                   BorderRadius.circular(22),
                   border: Border.all(
-                    color: const Color(0xFFE7E2EC),
+                    color:
+                    const Color(0xFFE7E2EC),
                   ),
                 ),
                 child: Row(
@@ -1335,7 +1695,8 @@ class LessonCompleteScreen extends StatelessWidget {
                     Container(
                       width: 1,
                       height: 45,
-                      color: const Color(0xFFE7E2EC),
+                      color:
+                      const Color(0xFFE7E2EC),
                     ),
 
                     Expanded(
@@ -1365,12 +1726,14 @@ class LessonCompleteScreen extends StatelessWidget {
                       MaterialPageRoute(
                         builder: (_) =>
                             PracticeScreen(
-                              chapterTitle: chapterTitle,
+                              chapterTitle:
+                              chapterTitle,
                             ),
                       ),
                     );
                   },
-                  style: FilledButton.styleFrom(
+                  style:
+                  FilledButton.styleFrom(
                     backgroundColor:
                     const Color(0xFF6C63A8),
                     shape:
@@ -1383,7 +1746,8 @@ class LessonCompleteScreen extends StatelessWidget {
                     'Practice These Signs',
                     style: TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.w800,
+                      fontWeight:
+                      FontWeight.w800,
                     ),
                   ),
                 ),
@@ -1400,18 +1764,15 @@ class LessonCompleteScreen extends StatelessWidget {
                 height: 54,
                 child: OutlinedButton(
                   onPressed: () {
-                    // This pops LessonCompleteScreen.
-                    //
-                    // Because LessonScreen was replaced by
-                    // LessonCompleteScreen, the route underneath
-                    // is LearnScreen.
                     Navigator.pop(context);
                   },
-                  style: OutlinedButton.styleFrom(
+                  style:
+                  OutlinedButton.styleFrom(
                     foregroundColor:
                     const Color(0xFF6C63A8),
                     side: const BorderSide(
-                      color: Color(0xFFD9D3E7),
+                      color:
+                      Color(0xFFD9D3E7),
                     ),
                     shape:
                     RoundedRectangleBorder(
@@ -1423,7 +1784,8 @@ class LessonCompleteScreen extends StatelessWidget {
                     'Back to Learning',
                     style: TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.w800,
+                      fontWeight:
+                      FontWeight.w800,
                     ),
                   ),
                 ),
@@ -1473,6 +1835,7 @@ class _Stat extends StatelessWidget {
         ),
 
         const SizedBox(height: 2),
+
 
         Text(
           label,

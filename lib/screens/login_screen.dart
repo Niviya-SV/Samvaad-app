@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../../services/api_service.dart';
+import '../../services/app_storage.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -9,6 +12,10 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  // =========================================================
+  // CONTROLLERS
+  // =========================================================
+
   final TextEditingController _emailController =
   TextEditingController();
 
@@ -18,8 +25,16 @@ class _LoginScreenState extends State<LoginScreen> {
   final GlobalKey<FormState> _formKey =
   GlobalKey<FormState>();
 
+  // =========================================================
+  // STATE
+  // =========================================================
+
   bool _obscurePassword = true;
   bool _isLoading = false;
+
+  // =========================================================
+  // DISPOSE
+  // =========================================================
 
   @override
   void dispose() {
@@ -28,8 +43,11 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // =========================================================
+  // LOGIN
+  // =========================================================
+
   Future<void> _login() async {
-    // Validate fields first.
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -38,43 +56,313 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    // Temporary delay for frontend testing.
-    // Supabase authentication will be added later.
-    await Future.delayed(
-      const Duration(milliseconds: 700),
-    );
+    try {
+      final email =
+      _emailController.text.trim();
 
-    if (!mounted) return;
+      final password =
+          _passwordController.text;
 
-    setState(() {
-      _isLoading = false;
-    });
+      // =======================================================
+      // CALL LOGIN API
+      // =======================================================
 
-    // GO TO HOME
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => HomeScreen(
-          // Temporary: showing email until we connect
-          // the registered learner profile.
-          learnerName: 'Your Name',
+      final result = await ApiService.login(
+        email,
+        password,
+      );
 
-          // These will come from the learner profile later.
-          goal: '',
-         // level: '',
+      debugPrint(
+        'LOGIN RESPONSE: $result',
+      );
+
+      // =======================================================
+      // GET JWT TOKEN
+      // =======================================================
+
+      final token =
+      result['token']?.toString();
+
+      if (token == null || token.isEmpty) {
+        throw Exception(
+          'Login succeeded but no token was received.',
+        );
+      }
+
+      // =======================================================
+      // SAVE JWT THROUGH AppStorage
+      // =======================================================
+
+      await AppStorage.saveToken(token);
+
+      debugPrint(
+        'JWT TOKEN SAVED SUCCESSFULLY',
+      );
+
+      // =======================================================
+      // VERIFY TOKEN WAS ACTUALLY SAVED
+      // =======================================================
+
+      final savedToken =
+      await AppStorage.getToken();
+
+      if (savedToken == null ||
+          savedToken.isEmpty) {
+        throw Exception(
+          'Login succeeded but the session could not be saved.',
+        );
+      }
+
+      debugPrint(
+        'JWT TOKEN VERIFIED IN LOCAL STORAGE',
+      );
+
+      // =======================================================
+      // SAVE EMAIL
+      // =======================================================
+
+      String learnerName = 'Learner';
+      String learnerEmail = email;
+      String learnerGoal = '';
+      String learnerLevel = '';
+
+      // =======================================================
+      // GET PROFILE
+      // =======================================================
+
+      try {
+        final profile =
+        await ApiService.getProfile(
+          token,
+        );
+
+        debugPrint(
+          'PROFILE RESPONSE: $profile',
+        );
+
+        Map<String, dynamic> userData =
+        Map<String, dynamic>.from(profile);
+
+        // -----------------------------------------------------
+        // PROFILE WRAPPED INSIDE "user"
+        // -----------------------------------------------------
+
+        if (profile['user'] is Map) {
+          userData =
+          Map<String, dynamic>.from(
+            profile['user'],
+          );
+        }
+
+        // -----------------------------------------------------
+        // PROFILE WRAPPED INSIDE "data"
+        // -----------------------------------------------------
+
+        else if (profile['data'] is Map) {
+          userData =
+          Map<String, dynamic>.from(
+            profile['data'],
+          );
+        }
+
+        // =====================================================
+        // NAME
+        // =====================================================
+
+        if (userData['name'] != null &&
+            userData['name']
+                .toString()
+                .trim()
+                .isNotEmpty) {
+          learnerName =
+              userData['name']
+                  .toString()
+                  .trim();
+        }
+
+        // =====================================================
+        // EMAIL
+        // =====================================================
+
+        if (userData['email'] != null &&
+            userData['email']
+                .toString()
+                .trim()
+                .isNotEmpty) {
+          learnerEmail =
+              userData['email']
+                  .toString()
+                  .trim();
+        }
+
+        // =====================================================
+        // GOAL
+        // =====================================================
+
+        if (userData['goal'] != null) {
+          learnerGoal =
+              userData['goal']
+                  .toString()
+                  .trim();
+        }
+
+        // =====================================================
+        // LEVEL
+        // =====================================================
+
+        if (userData['level'] != null) {
+          learnerLevel =
+              userData['level']
+                  .toString()
+                  .trim();
+        }
+      } catch (e) {
+        // -----------------------------------------------------
+        // LOGIN SUCCEEDED EVEN IF PROFILE FETCH FAILS
+        // -----------------------------------------------------
+
+        debugPrint(
+          'PROFILE FETCH ERROR: $e',
+        );
+      }
+
+      // =======================================================
+      // SAVE PROFILE LOCALLY
+      // =======================================================
+
+      await AppStorage.saveProfile(
+        name: learnerName,
+        email: learnerEmail,
+        goal: learnerGoal,
+        level: learnerLevel,
+      );
+
+      debugPrint(
+        '--------------------------------',
+      );
+
+      debugPrint(
+        'LOGIN USER DATA',
+      );
+
+      debugPrint(
+        'Name: $learnerName',
+      );
+
+      debugPrint(
+        'Email: $learnerEmail',
+      );
+
+      debugPrint(
+        'Goal: $learnerGoal',
+      );
+
+      debugPrint(
+        'Level: $learnerLevel',
+      );
+
+      debugPrint(
+        'JWT SAVED: YES',
+      );
+
+      debugPrint(
+        '--------------------------------',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      // =======================================================
+      // SUCCESS MESSAGE
+      // =======================================================
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Login successful! Welcome back 🎉',
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 1),
         ),
-      ),
-    );
+      );
+
+      // =======================================================
+      // SMALL DELAY
+      // =======================================================
+
+      await Future.delayed(
+        const Duration(
+          milliseconds: 500,
+        ),
+      );
+
+      if (!mounted) return;
+
+      // =======================================================
+      // GO TO HOME
+      // =======================================================
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HomeScreen(
+            learnerName: learnerName,
+            email: learnerEmail,
+            goal: learnerGoal,
+            level: learnerLevel,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      String message =
+      e.toString();
+
+      if (message.startsWith(
+        'Exception: ',
+      )) {
+        message =
+            message.substring(11);
+      }
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor:
+          Colors.redAccent,
+          duration:
+          const Duration(
+            seconds: 4,
+          ),
+        ),
+      );
+    }
   }
+
+  // =========================================================
+  // BUILD
+  // =========================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFBF5),
+      backgroundColor:
+      const Color(0xFFFFFBF5),
 
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
+          padding:
+          const EdgeInsets.symmetric(
             horizontal: 28,
             vertical: 24,
           ),
@@ -83,12 +371,13 @@ class _LoginScreenState extends State<LoginScreen> {
             key: _formKey,
 
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
 
               children: [
-                // ------------------------------------------------
+                // =================================================
                 // BACK BUTTON
-                // ------------------------------------------------
+                // =================================================
 
                 IconButton(
                   onPressed: () {
@@ -97,56 +386,74 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   icon: const Icon(
                     Icons.arrow_back_rounded,
+                    color:
+                    Color(0xFF29263D),
                   ),
-
-                  color: const Color(0xFF29263D),
                 ),
 
-                const SizedBox(height: 30),
+                const SizedBox(
+                  height: 30,
+                ),
 
-                // ------------------------------------------------
+                // =================================================
                 // TITLE
-                // ------------------------------------------------
+                // =================================================
 
                 const Text(
                   'Welcome Back!',
                   style: TextStyle(
                     fontSize: 30,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF29263D),
+                    fontWeight:
+                    FontWeight.w800,
+                    color:
+                    Color(0xFF29263D),
                   ),
                 ),
 
-                const SizedBox(height: 10),
+                const SizedBox(
+                  height: 10,
+                ),
 
                 const Text(
                   'Log in to continue your Samvaad learning journey.',
                   style: TextStyle(
                     fontSize: 15,
                     height: 1.5,
-                    color: Color(0xFF777282),
+                    color:
+                    Color(0xFF777282),
                   ),
                 ),
 
-                const SizedBox(height: 40),
+                const SizedBox(
+                  height: 40,
+                ),
 
-                // ------------------------------------------------
-                // EMAIL
-                // ------------------------------------------------
+                // =================================================
+                // EMAIL LABEL
+                // =================================================
 
                 const Text(
                   'Email',
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF29263D),
+                    fontWeight:
+                    FontWeight.w700,
+                    color:
+                    Color(0xFF29263D),
                   ),
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(
+                  height: 8,
+                ),
+
+                // =================================================
+                // EMAIL
+                // =================================================
 
                 TextFormField(
-                  controller: _emailController,
+                  controller:
+                  _emailController,
 
                   keyboardType:
                   TextInputType.emailAddress,
@@ -154,47 +461,70 @@ class _LoginScreenState extends State<LoginScreen> {
                   textInputAction:
                   TextInputAction.next,
 
-                  decoration: InputDecoration(
-                    hintText: 'Enter your email',
+                  decoration:
+                  InputDecoration(
+                    hintText:
+                    'Enter your email',
 
-                    prefixIcon: const Icon(
-                      Icons.email_outlined,
+                    prefixIcon:
+                    const Icon(
+                      Icons
+                          .email_outlined,
                     ),
 
                     filled: true,
 
-                    fillColor: Colors.white,
+                    fillColor:
+                    Colors.white,
 
-                    border: OutlineInputBorder(
+                    border:
+                    OutlineInputBorder(
                       borderRadius:
-                      BorderRadius.circular(16),
-
-                      borderSide: BorderSide.none,
+                      BorderRadius.circular(
+                        16,
+                      ),
+                      borderSide:
+                      BorderSide.none,
                     ),
 
-                    enabledBorder: OutlineInputBorder(
+                    enabledBorder:
+                    OutlineInputBorder(
                       borderRadius:
-                      BorderRadius.circular(16),
-
-                      borderSide: const BorderSide(
-                        color: Color(0xFFE5E1EB),
+                      BorderRadius.circular(
+                        16,
+                      ),
+                      borderSide:
+                      const BorderSide(
+                        color:
+                        Color(
+                          0xFFE5E1EB,
+                        ),
                       ),
                     ),
 
-                    focusedBorder: OutlineInputBorder(
+                    focusedBorder:
+                    OutlineInputBorder(
                       borderRadius:
-                      BorderRadius.circular(16),
-
-                      borderSide: const BorderSide(
-                        color: Color(0xFF6C63A8),
+                      BorderRadius.circular(
+                        16,
+                      ),
+                      borderSide:
+                      const BorderSide(
+                        color:
+                        Color(
+                          0xFF6C63A8,
+                        ),
                         width: 1.5,
                       ),
                     ),
                   ),
 
-                  validator: (value) {
+                  validator:
+                      (value) {
                     if (value == null ||
-                        value.trim().isEmpty) {
+                        value
+                            .trim()
+                            .isEmpty) {
                       return 'Please enter your email';
                     }
 
@@ -206,43 +536,61 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
 
-                const SizedBox(height: 22),
+                const SizedBox(
+                  height: 22,
+                ),
 
-                // ------------------------------------------------
-                // PASSWORD
-                // ------------------------------------------------
+                // =================================================
+                // PASSWORD LABEL
+                // =================================================
 
                 const Text(
                   'Password',
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF29263D),
+                    fontWeight:
+                    FontWeight.w700,
+                    color:
+                    Color(0xFF29263D),
                   ),
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(
+                  height: 8,
+                ),
+
+                // =================================================
+                // PASSWORD
+                // =================================================
 
                 TextFormField(
-                  controller: _passwordController,
+                  controller:
+                  _passwordController,
 
-                  obscureText: _obscurePassword,
+                  obscureText:
+                  _obscurePassword,
 
                   textInputAction:
                   TextInputAction.done,
 
-                  onFieldSubmitted: (_) {
+                  onFieldSubmitted:
+                      (_) {
                     _login();
                   },
 
-                  decoration: InputDecoration(
-                    hintText: 'Enter your password',
+                  decoration:
+                  InputDecoration(
+                    hintText:
+                    'Enter your password',
 
-                    prefixIcon: const Icon(
-                      Icons.lock_outline_rounded,
+                    prefixIcon:
+                    const Icon(
+                      Icons
+                          .lock_outline_rounded,
                     ),
 
-                    suffixIcon: IconButton(
+                    suffixIcon:
+                    IconButton(
                       onPressed: () {
                         setState(() {
                           _obscurePassword =
@@ -252,43 +600,62 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       icon: Icon(
                         _obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
+                            ? Icons
+                            .visibility_outlined
+                            : Icons
+                            .visibility_off_outlined,
                       ),
                     ),
 
                     filled: true,
 
-                    fillColor: Colors.white,
+                    fillColor:
+                    Colors.white,
 
-                    border: OutlineInputBorder(
+                    border:
+                    OutlineInputBorder(
                       borderRadius:
-                      BorderRadius.circular(16),
-
-                      borderSide: BorderSide.none,
+                      BorderRadius.circular(
+                        16,
+                      ),
+                      borderSide:
+                      BorderSide.none,
                     ),
 
-                    enabledBorder: OutlineInputBorder(
+                    enabledBorder:
+                    OutlineInputBorder(
                       borderRadius:
-                      BorderRadius.circular(16),
-
-                      borderSide: const BorderSide(
-                        color: Color(0xFFE5E1EB),
+                      BorderRadius.circular(
+                        16,
+                      ),
+                      borderSide:
+                      const BorderSide(
+                        color:
+                        Color(
+                          0xFFE5E1EB,
+                        ),
                       ),
                     ),
 
-                    focusedBorder: OutlineInputBorder(
+                    focusedBorder:
+                    OutlineInputBorder(
                       borderRadius:
-                      BorderRadius.circular(16),
-
-                      borderSide: const BorderSide(
-                        color: Color(0xFF6C63A8),
+                      BorderRadius.circular(
+                        16,
+                      ),
+                      borderSide:
+                      const BorderSide(
+                        color:
+                        Color(
+                          0xFF6C63A8,
+                        ),
                         width: 1.5,
                       ),
                     ),
                   ),
 
-                  validator: (value) {
+                  validator:
+                      (value) {
                     if (value == null ||
                         value.isEmpty) {
                       return 'Please enter your password';
@@ -302,11 +669,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(
+                  height: 12,
+                ),
 
-                // ------------------------------------------------
+                // =================================================
                 // FORGOT PASSWORD
-                // ------------------------------------------------
+                // =================================================
 
                 Align(
                   alignment:
@@ -314,11 +683,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   child: TextButton(
                     onPressed: () {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(
                         const SnackBar(
                           content: Text(
-                            'Password reset will be available soon.',
+                            'Password reset will be connected next.',
                           ),
                         ),
                       );
@@ -327,41 +697,56 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: const Text(
                       'Forgot Password?',
                       style: TextStyle(
-                        color: Color(0xFF6C63A8),
-                        fontWeight: FontWeight.w600,
+                        color:
+                        Color(0xFF6C63A8),
+                        fontWeight:
+                        FontWeight.w600,
                       ),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 22),
+                const SizedBox(
+                  height: 22,
+                ),
 
-                // ------------------------------------------------
+                // =================================================
                 // LOGIN BUTTON
-                // ------------------------------------------------
+                // =================================================
 
                 SizedBox(
-                  width: double.infinity,
+                  width:
+                  double.infinity,
+
                   height: 56,
 
                   child: FilledButton(
                     onPressed:
-                    _isLoading ? null : _login,
+                    _isLoading
+                        ? null
+                        : _login,
 
-                    style: FilledButton.styleFrom(
+                    style:
+                    FilledButton.styleFrom(
                       backgroundColor:
-                      const Color(0xFF6C63A8),
+                      const Color(
+                        0xFF6C63A8,
+                      ),
 
                       foregroundColor:
                       Colors.white,
 
                       disabledBackgroundColor:
-                      const Color(0xFFB8B3D0),
+                      const Color(
+                        0xFFB8B3D0,
+                      ),
 
                       shape:
                       RoundedRectangleBorder(
                         borderRadius:
-                        BorderRadius.circular(18),
+                        BorderRadius.circular(
+                          18,
+                        ),
                       ),
                     ),
 
@@ -369,7 +754,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ? const SizedBox(
                       width: 24,
                       height: 24,
-
                       child:
                       CircularProgressIndicator(
                         strokeWidth: 2.5,
@@ -391,11 +775,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 28),
+                const SizedBox(
+                  height: 28,
+                ),
 
-                // ------------------------------------------------
+                // =================================================
                 // REGISTER
-                // ------------------------------------------------
+                // =================================================
 
                 Row(
                   mainAxisAlignment:
@@ -405,19 +791,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Text(
                       "Don't have an account? ",
                       style: TextStyle(
-                        color: Color(0xFF777282),
+                        color:
+                        Color(0xFF777282),
                       ),
                     ),
 
                     TextButton(
                       onPressed: () {
-                        Navigator.pop(context);
+                        Navigator.pop(
+                          context,
+                        );
                       },
 
                       child: const Text(
                         'Register',
                         style: TextStyle(
-                          color: Color(0xFF6C63A8),
+                          color:
+                          Color(0xFF6C63A8),
                           fontWeight:
                           FontWeight.w700,
                         ),
@@ -426,11 +816,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(
+                  height: 20,
+                ),
 
-                // ------------------------------------------------
-                // ACCESSIBILITY NOTE
-                // ------------------------------------------------
+                // =================================================
+                // ACCESSIBILITY
+                // =================================================
 
                 Center(
                   child: Row(
@@ -439,18 +831,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     children: const [
                       Icon(
-                        Icons.accessibility_new_rounded,
+                        Icons
+                            .accessibility_new_rounded,
                         size: 18,
-                        color: Color(0xFF8A8695),
+                        color:
+                        Color(0xFF8A8695),
                       ),
 
-                      SizedBox(width: 6),
+                      SizedBox(
+                        width: 6,
+                      ),
 
                       Text(
                         'Learning designed for everyone',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF8A8695),
+                          color:
+                          Color(0xFF8A8695),
                         ),
                       ),
                     ],
