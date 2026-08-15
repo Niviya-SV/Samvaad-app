@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/app_storage.dart';
-import '../services/api_service.dart';
 
 import 'learn_screen.dart';
 import 'practice_screen.dart';
@@ -25,30 +23,19 @@ class HomeScreen extends StatefulWidget {
   });
 
   @override
-  State<HomeScreen> createState() =>
-      _HomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-
   // ============================================================
   // COLORS
   // ============================================================
 
-  static const Color primary =
-  Color(0xFF6C63A8);
-
-  static const Color darkText =
-  Color(0xFF29263D);
-
-  static const Color secondaryText =
-  Color(0xFF706B7C);
-
-  static const Color background =
-  Color(0xFFFFFBF5);
-
-  static const Color lightPrimary =
-  Color(0xFFEAE6F8);
+  static const Color primary = Color(0xFF6C63A8);
+  static const Color darkText = Color(0xFF29263D);
+  static const Color secondaryText = Color(0xFF706B7C);
+  static const Color background = Color(0xFFFFFBF5);
+  static const Color lightPrimary = Color(0xFFEAE6F8);
 
   // ============================================================
   // USER DATA
@@ -59,35 +46,11 @@ class _HomeScreenState extends State<HomeScreen> {
   String _goal = '';
   String _level = '';
 
-  // ============================================================
-  // LESSON DATA
-  // ============================================================
-
-  List<Map<String, dynamic>> _lessons = [];
-
-  // ============================================================
-  // PROGRESS DATA
-  // ============================================================
-
-  List<Map<String, dynamic>> _progress = [];
-
-  int _totalLessons = 0;
-  int _completedLessons = 0;
-
-  // REAL BACKEND STATISTICS
-  int _xp = 0;
-  int _currentStreak = 0;
-  String? _lastActivityDate;
-  int _achievementCount = 0;
-  double _averageScore = 0.0;
-  int _totalPracticeAttempts = 0;
-
-  Map<String, dynamic>? _continueLesson;
-
   bool _isLoading = true;
-  bool _isRefreshing = false;
 
-  String? _errorMessage;
+  // For now this can later be connected directly to the backend
+  int _streak = 0;
+  int _xp = 0;
 
   // ============================================================
   // INIT
@@ -96,667 +59,138 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadHomeData();
+    _loadLearnerData();
   }
 
   // ============================================================
-  // GET TOKEN
+  // LOAD USER DATA
   // ============================================================
 
-  Future<String?> _getToken() async {
-    final prefs =
-    SharedPreferencesAsync();
+  Future<void> _loadLearnerData() async {
+    final name = await AppStorage.getName();
+    final email = await AppStorage.getEmail();
+    final goal = await AppStorage.getGoal();
+    final level = await AppStorage.getLevel();
 
-    return prefs.getString(
-      'jwt_token',
-    );
+    if (!mounted) return;
+
+    setState(() {
+      _name = name.isNotEmpty
+          ? name
+          : (widget.learnerName ?? '');
+
+      _email = email.isNotEmpty
+          ? email
+          : (widget.email ?? '');
+
+      _goal = goal.isNotEmpty
+          ? goal
+          : (widget.goal ?? '');
+
+      _level = level.isNotEmpty
+          ? level
+          : (widget.level ?? '');
+
+      _isLoading = false;
+    });
   }
 
   // ============================================================
-  // LOAD HOME DATA
+  // DISPLAY NAME
   // ============================================================
 
-  Future<void> _loadHomeData({
-    bool refresh = false,
-  }) async {
-
-    if (refresh) {
-      setState(() {
-        _isRefreshing = true;
-      });
-    } else {
-      setState(() {
-        _isLoading = true;
-      });
-    }
-
-    try {
-
-      // ========================================================
-      // LOCAL PROFILE DATA
-      // ========================================================
-
-      String name =
-      await AppStorage.getName();
-
-      String email =
-      await AppStorage.getEmail();
-
-      String goal =
-      await AppStorage.getGoal();
-
-      String level =
-      await AppStorage.getLevel();
-
-      // ========================================================
-      // WIDGET FALLBACK
-      // ========================================================
-
-      if (name.isEmpty &&
-          widget.learnerName != null) {
-        name = widget.learnerName!;
-      }
-
-      if (email.isEmpty &&
-          widget.email != null) {
-        email = widget.email!;
-      }
-
-      if (goal.isEmpty &&
-          widget.goal != null) {
-        goal = widget.goal!;
-      }
-
-      if (level.isEmpty &&
-          widget.level != null) {
-        level = widget.level!;
-      }
-
-      // ========================================================
-      // GET JWT
-      // ========================================================
-
-      final token =
-      await _getToken();
-
-      if (token == null ||
-          token.isEmpty) {
-        throw Exception(
-          'Login session not found.',
-        );
-      }
-
-      // ========================================================
-      // GET LESSONS + PROGRESS
-      // ========================================================
-
-      final results =
-      await Future.wait([
-        ApiService.getLessons(token),
-        ApiService.getProgress(token),
-        ApiService.getStatistics(token),
-      ]);
-
-      final lessonsData =
-      results[0] as List<dynamic>;
-
-      final progressData =
-      results[1] as List<dynamic>;
-
-      // ========================================================
-      // NORMALIZE LESSONS
-      // ========================================================
-
-      final lessons =
-      lessonsData
-          .whereType<Map>()
-          .map(
-            (lesson) =>
-        Map<String, dynamic>.from(
-          lesson,
-        ),
-      )
-          .toList();
-
-      // ========================================================
-      // NORMALIZE PROGRESS
-      // ========================================================
-
-      final progress =
-      progressData
-          .whereType<Map>()
-          .map(
-            (item) =>
-        Map<String, dynamic>.from(
-          item,
-        ),
-      )
-          .toList();
-
-      // ========================================================
-      // REAL BACKEND STATISTICS
-      // ========================================================
-
-      final statistics =
-      Map<String, dynamic>.from(
-        results[2] as Map,
-      );
-
-      final backendXp =
-          int.tryParse(
-            statistics['xp']?.toString() ?? '',
-          ) ?? 0;
-
-      final backendStreak =
-          int.tryParse(
-            statistics['currentStreak']?.toString() ?? '',
-          ) ?? 0;
-
-      final backendLastActivity =
-      statistics['lastActivityDate']?.toString();
-
-      final backendAchievementCount =
-          int.tryParse(
-            statistics['achievementCount']?.toString() ?? '',
-          ) ?? 0;
-
-      final backendPracticeAttempts =
-          int.tryParse(
-            statistics['totalPracticeAttempts']?.toString() ?? '',
-          ) ?? 0;
-
-      final backendAverageScore =
-          double.tryParse(
-            statistics['averageScore']?.toString() ?? '',
-          ) ?? 0.0;
-
-      // ========================================================
-      // SORT LESSONS
-      // ========================================================
-
-      lessons.sort(
-            (a, b) {
-
-          final chapterA =
-              a['chapter']
-                  ?.toString()
-                  .toLowerCase() ??
-                  '';
-
-          final chapterB =
-              b['chapter']
-                  ?.toString()
-                  .toLowerCase() ??
-                  '';
-
-          final chapterCompare =
-          chapterA.compareTo(
-            chapterB,
-          );
-
-          if (chapterCompare != 0) {
-            return chapterCompare;
-          }
-
-          final orderA =
-              int.tryParse(
-                a['lessonOrder']
-                    ?.toString() ??
-                    '',
-              ) ??
-                  0;
-
-          final orderB =
-              int.tryParse(
-                b['lessonOrder']
-                    ?.toString() ??
-                    '',
-              ) ??
-                  0;
-
-          return orderA.compareTo(
-            orderB,
-          );
-        },
-      );
-
-      // ========================================================
-      // TOTAL LESSONS
-      // ========================================================
-
-      final total =
-          lessons.length;
-
-      // ========================================================
-      // COMPLETED LESSONS
-      // ========================================================
-
-      final completedIds =
-      <int>{};
-
-      for (final item in progress) {
-
-        final completed =
-            item['completed'] == true;
-
-        if (!completed) {
-          continue;
-        }
-
-        final lessonId =
-        int.tryParse(
-          item['lessonId']
-              ?.toString() ??
-              '',
-        );
-
-        if (lessonId != null) {
-          completedIds.add(
-            lessonId,
-          );
-        }
-      }
-
-      final completed =
-          completedIds.length;
-
-      // ========================================================
-      // FIND NEXT INCOMPLETE LESSON
-      // ========================================================
-
-      Map<String, dynamic>? nextLesson;
-
-      for (final lesson in lessons) {
-
-        final id =
-        int.tryParse(
-          lesson['id']
-              ?.toString() ??
-              '',
-        );
-
-        if (id == null) {
-          continue;
-        }
-
-        if (!completedIds.contains(id)) {
-          nextLesson = lesson;
-          break;
-        }
-      }
-
-      // ========================================================
-      // UPDATE STATE
-      // ========================================================
-
-      if (!mounted) return;
-
-      setState(() {
-
-        _name = name;
-        _email = email;
-        _goal = goal;
-        _level = level;
-
-        _lessons = lessons;
-        _progress = progress;
-
-        _totalLessons = total;
-        _completedLessons = completed;
-
-        // Values come from the backend.
-        // Do not calculate or increment streak locally.
-        _xp = backendXp;
-        _currentStreak = backendStreak;
-        _lastActivityDate = backendLastActivity;
-        _achievementCount = backendAchievementCount;
-        _totalPracticeAttempts = backendPracticeAttempts;
-        _averageScore = backendAverageScore;
-
-        _continueLesson =
-            nextLesson;
-
-        _isLoading = false;
-        _isRefreshing = false;
-        _errorMessage = null;
-      });
-
-    } catch (e) {
-
-      debugPrint(
-        'Home loading error: $e',
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-        _isRefreshing = false;
-
-        _errorMessage =
-            e.toString();
-      });
-    }
-  }
-
-  // ============================================================
-  // OVERALL PROGRESS
-  // ============================================================
-
-  double get _overallProgress {
-
-    if (_totalLessons <= 0) {
-      return 0;
-    }
-
-    return
-      (_completedLessons /
-          _totalLessons)
-          .clamp(0.0, 1.0);
-  }
-
-  // ============================================================
-  // PROGRESS PERCENTAGE
-  // ============================================================
-
-  int get _progressPercentage {
-
-    return (_overallProgress * 100)
-        .round();
-  }
-
-  // ============================================================
-  // FIRST NAME
-  // ============================================================
-
-  String get _firstName {
-
-    final value =
-    _name.trim();
+  String get _displayName {
+    final value = _name.trim();
 
     if (value.isEmpty) {
       return 'Learner';
     }
 
-    return value
-        .split(' ')
-        .first;
+    return value;
   }
 
-  // ============================================================
-  // DISPLAY LEVEL
-  // ============================================================
+  String get _firstName {
+    final value = _displayName.trim();
 
-  String get _displayLevel {
-
-    if (_level.trim().isEmpty) {
-      return 'Beginner';
+    if (value.isEmpty) {
+      return 'Learner';
     }
 
-    return _level.trim();
+    return value.split(' ').first;
   }
 
-  // ============================================================
-  // DISPLAY GOAL
-  // ============================================================
-
   String get _displayGoal {
-
     if (_goal.trim().isEmpty) {
-      return 'Build your ISL skills';
+      return 'Learn Indian Sign Language';
     }
 
     return _goal.trim();
   }
 
   // ============================================================
-  // CURRENT LESSON TITLE
-  // ============================================================
-
-  String get _continueLessonTitle {
-
-    if (_continueLesson == null) {
-      return 'All lessons completed!';
-    }
-
-    return _continueLesson!['title']
-        ?.toString() ??
-        'Next Lesson';
-  }
-
-  // ============================================================
-  // CURRENT LESSON CHAPTER
-  // ============================================================
-
-  String get _continueLessonChapter {
-
-    if (_continueLesson == null) {
-      return '';
-    }
-
-    return _continueLesson!['chapter']
-        ?.toString() ??
-        '';
-  }
-
-  // ============================================================
-  // CURRENT LESSON ID
-  // ============================================================
-
-  int? get _continueLessonId {
-
-    if (_continueLesson == null) {
-      return null;
-    }
-
-    return int.tryParse(
-      _continueLesson!['id']
-          ?.toString() ??
-          '',
-    );
-  }
-
-  // ============================================================
-  // LEVEL LESSONS
-  // ============================================================
-
-  List<Map<String, dynamic>>
-  _lessonsForLevel(
-      String level,
-      ) {
-
-    return _lessons
-        .where(
-          (lesson) =>
-      (lesson['level']
-          ?.toString()
-          .toLowerCase() ??
-          '') ==
-          level
-              .toLowerCase(),
-    )
-        .toList();
-  }
-
-  // ============================================================
-  // LEVEL COMPLETION
-  // ============================================================
-
-  double _levelProgress(
-      String level,
-      ) {
-
-    final levelLessons =
-    _lessonsForLevel(
-      level,
-    );
-
-    if (levelLessons.isEmpty) {
-      return 0;
-    }
-
-    int completed = 0;
-
-    for (final lesson
-    in levelLessons) {
-
-      final id =
-      int.tryParse(
-        lesson['id']
-            ?.toString() ??
-            '',
-      );
-
-      if (id == null) {
-        continue;
-      }
-
-      final found =
-      _progress.any(
-            (item) =>
-        item['lessonId']
-            ?.toString() ==
-            id.toString() &&
-            item['completed'] ==
-                true,
-      );
-
-      if (found) {
-        completed++;
-      }
-    }
-
-    return
-      (completed /
-          levelLessons.length)
-          .clamp(0.0, 1.0);
-  }
-
-  // ============================================================
-  // OPEN LEARN
+  // NAVIGATION
   // ============================================================
 
   Future<void> _openLearn() async {
-
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-        const LearnScreen(),
+        builder: (_) => const LearnScreen(),
       ),
     );
 
     if (!mounted) return;
 
-    await _loadHomeData(
-      refresh: true,
-    );
+    _loadLearnerData();
   }
-
-  // ============================================================
-  // OPEN PRACTICE
-  // ============================================================
 
   Future<void> _openPractice() async {
-
-    if (_continueLessonId == null) {
-
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-          const PracticeScreen(
-            chapterTitle:
-            'Greetings',
-          ),
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PracticeScreen(
+          chapterTitle: 'Greetings',
         ),
-      );
-
-    } else {
-
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              PracticeScreen(
-                chapterTitle:
-                _continueLessonChapter,
-              ),
-        ),
-      );
-    }
+      ),
+    );
 
     if (!mounted) return;
 
-    await _loadHomeData(
-      refresh: true,
-    );
+    _loadLearnerData();
   }
-
-  // ============================================================
-  // OPEN PROFILE
-  // ============================================================
 
   Future<void> _openProfile() async {
-
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            ProfileScreen(
-              learnerName: _name,
-              email: _email,
-              goal: _goal,
-            ),
+        builder: (_) => ProfileScreen(
+          learnerName: _name,
+          email: _email,
+          goal: _goal,
+        ),
       ),
     );
 
     if (!mounted) return;
 
-    await _loadHomeData(
-      refresh: true,
-    );
+    _loadLearnerData();
   }
-
-  // ============================================================
-  // OPEN SETTINGS
-  // ============================================================
 
   Future<void> _openSettings() async {
-
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-        const SettingsScreen(),
+        builder: (_) => const SettingsScreen(),
       ),
-    );
-
-    if (!mounted) return;
-
-    await _loadHomeData(
-      refresh: true,
     );
   }
 
-  // ============================================================
-  // OPEN NOTIFICATIONS
-  // ============================================================
-
   Future<void> _openNotifications() async {
-
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-        const NotificationsScreen(),
+        builder: (_) => const NotificationsScreen(),
       ),
-    );
-
-    if (!mounted) return;
-
-    await _loadHomeData(
-      refresh: true,
     );
   }
 
@@ -765,18 +199,12 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-
+  Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor:
-        background,
-
+        backgroundColor: background,
         body: Center(
-          child:
-          CircularProgressIndicator(
+          child: CircularProgressIndicator(
             color: primary,
           ),
         ),
@@ -784,65 +212,50 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return Scaffold(
-      backgroundColor:
-      background,
+      backgroundColor: background,
 
       // ========================================================
       // APP BAR
       // ========================================================
 
       appBar: AppBar(
-        backgroundColor:
-        background,
-
+        backgroundColor: background,
         elevation: 0,
-
-        surfaceTintColor:
-        Colors.transparent,
-
-        automaticallyImplyLeading:
-        false,
+        surfaceTintColor: Colors.transparent,
+        automaticallyImplyLeading: false,
 
         title: const Text(
           'SAMVAAD',
-
           style: TextStyle(
             color: primary,
-            fontSize: 21,
-            fontWeight:
-            FontWeight.w900,
-            letterSpacing: 1.4,
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.5,
           ),
         ),
 
         actions: [
-
           IconButton(
-            onPressed:
-            _openNotifications,
-
+            tooltip: 'Notifications',
+            onPressed: _openNotifications,
             icon: const Icon(
-              Icons
-                  .notifications_none_rounded,
+              Icons.notifications_none_rounded,
               color: darkText,
               size: 27,
             ),
           ),
 
           IconButton(
-            onPressed:
-            _openSettings,
-
+            tooltip: 'Settings',
+            onPressed: _openSettings,
             icon: const Icon(
               Icons.settings_outlined,
               color: darkText,
-              size: 25,
+              size: 26,
             ),
           ),
 
-          const SizedBox(
-            width: 8,
-          ),
+          const SizedBox(width: 6),
         ],
       ),
 
@@ -852,235 +265,108 @@ class _HomeScreenState extends State<HomeScreen> {
 
       body: RefreshIndicator(
         color: primary,
+        onRefresh: _loadLearnerData,
 
-        onRefresh: () =>
-            _loadHomeData(
-              refresh: true,
-            ),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
 
-        child:
-        SingleChildScrollView(
-          physics:
-          const AlwaysScrollableScrollPhysics(),
-
-          padding:
-          const EdgeInsets.fromLTRB(
+          padding: const EdgeInsets.fromLTRB(
             20,
-            8,
+            10,
             20,
-            30,
+            100,
           ),
 
           child: Column(
-            crossAxisAlignment:
-            CrossAxisAlignment.start,
-
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
 
               // ==================================================
               // GREETING
               // ==================================================
 
-              Row(
-                children: [
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
-
-                      children: [
-
-                        Text(
-                          'Hello, $_firstName 👋',
-
-                          style:
-                          const TextStyle(
-                            fontSize: 27,
-                            fontWeight:
-                            FontWeight.w900,
-                            color:
-                            darkText,
-                          ),
-                        ),
-
-                        const SizedBox(
-                          height: 6,
-                        ),
-
-                        const Text(
-                          'Ready to continue your learning journey?',
-
-                          style:
-                          TextStyle(
-                            fontSize: 14,
-                            color:
-                            secondaryText,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  GestureDetector(
-                    onTap:
-                    _openProfile,
-
-                    child: Container(
-                      width: 54,
-                      height: 54,
-
-                      decoration:
-                      BoxDecoration(
-                        color:
-                        lightPrimary,
-
-                        shape:
-                        BoxShape.circle,
-
-                        border:
-                        Border.all(
-                          color:
-                          primary.withValues(
-                            alpha: 0.2,
-                          ),
-                          width: 2,
-                        ),
-                      ),
-
-                      child:
-                      const Icon(
-                        Icons
-                            .person_rounded,
-                        color: primary,
-                        size: 29,
-                      ),
-                    ),
-                  ),
-                ],
+              Text(
+                'Hello, $_firstName 👋',
+                style: const TextStyle(
+                  fontSize: 27,
+                  fontWeight: FontWeight.w900,
+                  color: darkText,
+                ),
               ),
 
-              const SizedBox(
-                height: 22,
+              const SizedBox(height: 7),
+
+              Text(
+                _displayGoal,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: secondaryText,
+                ),
               ),
+
+              const SizedBox(height: 28),
 
               // ==================================================
-              // PROFILE
+              // STREAK CARD
               // ==================================================
 
-              _profileCard(),
+              _streakCard(),
 
-              const SizedBox(
-                height: 14,
-              ),
-
-              _realStatsCard(),
-
-              const SizedBox(
-                height: 25,
-              ),
+              const SizedBox(height: 30),
 
               // ==================================================
               // CONTINUE LEARNING
               // ==================================================
 
-              _sectionTitle(
-                'Continue Learning',
-                'View All',
-                _openLearn,
-              ),
-
-              const SizedBox(
-                height: 12,
-              ),
-
-              _continueLearningCard(),
-
-              const SizedBox(
-                height: 28,
-              ),
-
-              // ==================================================
-              // TODAY'S ACTIVITY
-              // ==================================================
-
               const Text(
-                "Today's Task",
-
+                'Continue Learning',
                 style: TextStyle(
-                  fontSize: 19,
-                  fontWeight:
-                  FontWeight.w900,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w900,
                   color: darkText,
                 ),
               ),
 
-              const SizedBox(
-                height: 12,
-              ),
+              const SizedBox(height: 14),
 
-              _todayProgressCard(),
+              _continueLearningCard(),
 
-              const SizedBox(
-                height: 28,
-              ),
+              const SizedBox(height: 30),
 
               // ==================================================
               // LEARNING PATH
               // ==================================================
 
               const Text(
-                'Learning Path',
-
+                'Your Learning Journey',
                 style: TextStyle(
-                  fontSize: 19,
-                  fontWeight:
-                  FontWeight.w900,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w900,
                   color: darkText,
                 ),
               ),
 
-              const SizedBox(
-                height: 12,
+              const SizedBox(height: 7),
+
+              const Text(
+                'Learn signs step by step and unlock new topics.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: secondaryText,
+                ),
               ),
 
-              _learningPath(),
+              const SizedBox(height: 16),
 
-              const SizedBox(
-                height: 28,
-              ),
+              _learningJourneyCard(),
 
-              // ==================================================
-              // PRACTICE
-              // ==================================================
-
-              _sectionTitle(
-                'Practice',
-                'Start',
-                _openPractice,
-              ),
-
-              const SizedBox(
-                height: 12,
-              ),
-
-              _practiceCard(),
-
-              const SizedBox(
-                height: 28,
-              ),
+              const SizedBox(height: 30),
 
               // ==================================================
               // MOTIVATION
               // ==================================================
 
               _motivationCard(),
-
-              const SizedBox(
-                height: 20,
-              ),
             ],
           ),
         ),
@@ -1090,71 +376,51 @@ class _HomeScreenState extends State<HomeScreen> {
       // BOTTOM NAVIGATION
       // ========================================================
 
-      bottomNavigationBar:
-      SafeArea(
+      bottomNavigationBar: SafeArea(
+        top: false,
+
         child: Container(
-          padding:
-          const EdgeInsets.symmetric(
-            horizontal: 10,
-            vertical: 8,
-          ),
+          height: 76,
 
-          decoration:
-          BoxDecoration(
+          decoration: const BoxDecoration(
             color: Colors.white,
-
-            boxShadow: [
-              BoxShadow(
-                color:
-                Colors.black.withValues(
-                  alpha: 0.06,
-                ),
-                blurRadius: 18,
-                offset:
-                const Offset(
-                  0,
-                  -5,
-                ),
+            border: Border(
+              top: BorderSide(
+                color: Color(0xFFEAE6EF),
               ),
-            ],
+            ),
           ),
 
           child: Row(
-            mainAxisAlignment:
-            MainAxisAlignment
-                .spaceAround,
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
 
             children: [
-
               _navItem(
-                Icons.home_rounded,
-                'Home',
-                true,
-                    () {},
+                icon: Icons.home_rounded,
+                label: 'Home',
+                selected: true,
+                onTap: () {},
               ),
 
               _navItem(
-                Icons
-                    .menu_book_rounded,
-                'Learn',
-                false,
-                _openLearn,
+                icon: Icons.menu_book_outlined,
+                label: 'Learn',
+                selected: false,
+                onTap: _openLearn,
               ),
 
               _navItem(
-                Icons
-                    .sports_esports_rounded,
-                'Practice',
-                false,
-                _openPractice,
+                icon: Icons.videocam_outlined,
+                label: 'Practice',
+                selected: false,
+                onTap: _openPractice,
               ),
 
               _navItem(
-                Icons
-                    .person_outline_rounded,
-                'Profile',
-                false,
-                _openProfile,
+                icon: Icons.person_outline_rounded,
+                label: 'Profile',
+                selected: false,
+                onTap: _openProfile,
               ),
             ],
           ),
@@ -1164,29 +430,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ============================================================
-  // PROFILE CARD
+  // STREAK CARD
   // ============================================================
 
-  Widget _profileCard() {
-
+  Widget _streakCard() {
     return Container(
       width: double.infinity,
+      padding: const EdgeInsets.all(20),
 
-      padding:
-      const EdgeInsets.all(18),
-
-      decoration:
-      BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
-
-        borderRadius:
-        BorderRadius.circular(
-          22,
-        ),
+        borderRadius: BorderRadius.circular(24),
 
         border: Border.all(
-          color:
-          const Color(0xFFEDEAF4),
+          color: const Color(0xFFE8E4EF),
         ),
       ),
 
@@ -1194,1277 +451,305 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
 
           Container(
-            width: 52,
-            height: 52,
+            width: 64,
+            height: 64,
 
-            decoration:
-            BoxDecoration(
-              color:
-              lightPrimary,
-
-              borderRadius:
-              BorderRadius.circular(
-                16,
-              ),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF3E4),
+              borderRadius: BorderRadius.circular(20),
             ),
 
-            child:
-            const Icon(
-              Icons
-                  .person_rounded,
-              color: primary,
-              size: 28,
+            child: const Icon(
+              Icons.local_fire_department_rounded,
+              color: Color(0xFFFF922B),
+              size: 34,
             ),
           ),
 
-          const SizedBox(
-            width: 14,
-          ),
+          const SizedBox(width: 17),
 
           Expanded(
             child: Column(
-              crossAxisAlignment:
-              CrossAxisAlignment
-                  .start,
+              crossAxisAlignment: CrossAxisAlignment.start,
 
               children: [
-
-                Text(
-                  _name.isEmpty
-                      ? 'Learner'
-                      : _name,
-
-                  maxLines: 1,
-
-                  overflow:
-                  TextOverflow
-                      .ellipsis,
-
-                  style:
-                  const TextStyle(
+                const Text(
+                  'Learning Streak',
+                  style: TextStyle(
                     fontSize: 17,
-                    fontWeight:
-                    FontWeight.w800,
-                    color:
-                    darkText,
+                    fontWeight: FontWeight.w800,
+                    color: darkText,
                   ),
                 ),
 
-                const SizedBox(
-                  height: 4,
-                ),
+                const SizedBox(height: 5),
 
                 Text(
-                  _email.isEmpty
-                      ? 'Learner Profile'
-                      : _email,
-
-                  maxLines: 1,
-
-                  overflow:
-                  TextOverflow
-                      .ellipsis,
-
-                  style:
-                  const TextStyle(
+                  _streak == 0
+                      ? 'Start learning today to build your streak!'
+                      : 'Keep learning to continue your streak.',
+                  style: const TextStyle(
                     fontSize: 12,
-                    color:
-                    secondaryText,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 4,
-                ),
-
-                Text(
-                  _displayLevel,
-
-                  style:
-                  const TextStyle(
-                    fontSize: 12,
-                    color: primary,
-                    fontWeight:
-                    FontWeight.w700,
+                    color: secondaryText,
                   ),
                 ),
               ],
             ),
           ),
 
-          IconButton(
-            onPressed:
-            _openProfile,
-
-            icon:
-            const Icon(
-              Icons
-                  .edit_outlined,
-              color: primary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // REAL XP + STREAK CARD
-  // ============================================================
-
-  Widget _realStatsCard() {
-    final bool hasStreak = _currentStreak > 0;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 16,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: const Color(0xFFEDEAF4),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF1D8),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: const Icon(
-                    Icons.local_fire_department_rounded,
-                    color: Color(0xFFF28C28),
-                    size: 27,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      hasStreak
-                          ? '$_currentStreak day streak'
-                          : 'Start your streak',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: darkText,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      hasStreak
-                          ? 'Keep completing your daily task'
-                          : 'Complete today\'s task to begin',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: secondaryText,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 42,
-            color: const Color(0xFFEDEAF4),
-          ),
-          const SizedBox(width: 15),
           Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Icon(
-                Icons.bolt_rounded,
-                color: Color(0xFFF4B400),
-                size: 21,
-              ),
-              const SizedBox(height: 1),
               Text(
-                '$_xp XP',
+                '$_streak',
                 style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  color: darkText,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // CONTINUE LEARNING CARD
-  // ============================================================
-
-  Widget _continueLearningCard() {
-
-    // ----------------------------------------------------------
-    // ALL LESSONS COMPLETED
-    // ----------------------------------------------------------
-
-    if (_continueLesson == null) {
-
-      return Container(
-        width: double.infinity,
-
-        padding:
-        const EdgeInsets.all(20),
-
-        decoration:
-        BoxDecoration(
-          color:
-          const Color(0xFFEAE6F8),
-
-          borderRadius:
-          BorderRadius.circular(
-            24,
-          ),
-        ),
-
-        child: Column(
-          children: [
-
-            const Icon(
-              Icons
-                  .emoji_events_rounded,
-              color: primary,
-              size: 46,
-            ),
-
-            const SizedBox(
-              height: 10,
-            ),
-
-            const Text(
-              'All lessons completed! 🎉',
-
-              textAlign:
-              TextAlign.center,
-
-              style:
-              TextStyle(
-                fontSize: 18,
-                fontWeight:
-                FontWeight.w900,
-                color: darkText,
-              ),
-            ),
-
-            const SizedBox(
-              height: 5,
-            ),
-
-            Text(
-              '$_completedLessons / $_totalLessons lessons completed',
-
-              style:
-              const TextStyle(
-                fontSize: 13,
-                color:
-                secondaryText,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // ----------------------------------------------------------
-    // NEXT LESSON
-    // ----------------------------------------------------------
-
-    return Container(
-      width: double.infinity,
-
-      padding:
-      const EdgeInsets.all(19),
-
-      decoration:
-      BoxDecoration(
-        gradient:
-        const LinearGradient(
-          colors: [
-            Color(0xFF6C63A8),
-            Color(0xFF8177C4),
-          ],
-
-          begin:
-          Alignment.topLeft,
-
-          end:
-          Alignment.bottomRight,
-        ),
-
-        borderRadius:
-        BorderRadius.circular(
-          24,
-        ),
-
-        boxShadow: [
-          BoxShadow(
-            color:
-            primary.withValues(
-              alpha: 0.2,
-            ),
-            blurRadius: 18,
-            offset:
-            const Offset(
-              0,
-              8,
-            ),
-          ),
-        ],
-      ),
-
-      child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
-
-        children: [
-
-          Row(
-            children: [
-
-              Container(
-                width: 48,
-                height: 48,
-
-                decoration:
-                BoxDecoration(
-                  color:
-                  Colors.white
-                      .withValues(
-                    alpha: 0.18,
-                  ),
-
-                  borderRadius:
-                  BorderRadius.circular(
-                    15,
-                  ),
-                ),
-
-                child:
-                const Icon(
-                  Icons
-                      .front_hand_rounded,
-                  color:
-                  Colors.white,
-                  size: 27,
-                ),
-              ),
-
-              const SizedBox(
-                width: 14,
-              ),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
-
-                  children: [
-
-                    Text(
-                      _continueLessonTitle,
-
-                      maxLines: 1,
-
-                      overflow:
-                      TextOverflow
-                          .ellipsis,
-
-                      style:
-                      const TextStyle(
-                        color:
-                        Colors.white,
-                        fontSize: 18,
-                        fontWeight:
-                        FontWeight.w800,
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 3,
-                    ),
-
-                    Text(
-                      _continueLessonChapter
-                          .isEmpty
-                          ? 'Next lesson'
-                          : _continueLessonChapter,
-
-                      style:
-                      const TextStyle(
-                        color:
-                        Colors.white70,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(
-            height: 20,
-          ),
-
-          // ----------------------------------------------------
-          // REAL OVERALL PROGRESS
-          // ----------------------------------------------------
-
-          Row(
-            mainAxisAlignment:
-            MainAxisAlignment
-                .spaceBetween,
-
-            children: [
-
-              const Text(
-                'Overall Progress',
-
-                style:
-                TextStyle(
-                  color:
-                  Colors.white70,
-                  fontSize: 12,
-                ),
-              ),
-
-              Text(
-                '$_progressPercentage%',
-
-                style:
-                const TextStyle(
-                  color:
-                  Colors.white,
-                  fontSize: 12,
-                  fontWeight:
-                  FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(
-            height: 8,
-          ),
-
-          ClipRRect(
-            borderRadius:
-            BorderRadius.circular(
-              10,
-            ),
-
-            child:
-            LinearProgressIndicator(
-              value:
-              _overallProgress,
-
-              minHeight: 8,
-
-              backgroundColor:
-              const Color(
-                0x4DFFFFFF,
-              ),
-
-              valueColor:
-              const AlwaysStoppedAnimation<
-                  Color>(
-                Colors.white,
-              ),
-            ),
-          ),
-
-          const SizedBox(
-            height: 9,
-          ),
-
-          Text(
-            '$_completedLessons of $_totalLessons lessons completed',
-
-            style:
-            const TextStyle(
-              color:
-              Colors.white70,
-              fontSize: 11,
-            ),
-          ),
-
-          const SizedBox(
-            height: 18,
-          ),
-
-          SizedBox(
-            width:
-            double.infinity,
-
-            height: 48,
-
-            child:
-            ElevatedButton(
-              onPressed:
-              _openLearn,
-
-              style:
-              ElevatedButton.styleFrom(
-                backgroundColor:
-                Colors.white,
-
-                foregroundColor:
-                primary,
-
-                elevation: 0,
-
-                shape:
-                RoundedRectangleBorder(
-                  borderRadius:
-                  BorderRadius.circular(
-                    15,
-                  ),
-                ),
-              ),
-
-              child:
-              const Text(
-                'Continue Learning',
-
-                style:
-                TextStyle(
-                  fontWeight:
-                  FontWeight.w800,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // DAILY TASK
-  // ============================================================
-
-  bool _isDailyTaskCompletedToday() {
-    if (_lastActivityDate == null ||
-        _lastActivityDate!.trim().isEmpty) {
-      return false;
-    }
-
-    final lastActivity =
-    DateTime.tryParse(_lastActivityDate!);
-
-    if (lastActivity == null) {
-      return false;
-    }
-
-    final now = DateTime.now();
-
-    return lastActivity.year == now.year &&
-        lastActivity.month == now.month &&
-        lastActivity.day == now.day;
-  }
-
-  Widget _todayProgressCard() {
-    final completedToday =
-    _isDailyTaskCompletedToday();
-
-    final progress =
-    completedToday ? 1.0 : 0.0;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: const Color(0xFFEDEAF4),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-
-          // ======================================================
-          // HEADER
-          // ======================================================
-
-          Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF1D8),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: const Icon(
-                  Icons.local_fire_department_rounded,
-                  color: Color(0xFFF28C28),
-                  size: 28,
-                ),
-              ),
-
-              const SizedBox(width: 13),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Today's Daily Task",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        color: darkText,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      completedToday
-                          ? 'Daily practice completed! 🎉'
-                          : 'Complete your practice for today.',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: secondaryText,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ==================================================
-              // REAL STREAK
-              // ==================================================
-
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 9,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF1ED),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.local_fire_department_rounded,
-                      color: Color(0xFFE56B5D),
-                      size: 16,
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      '$_currentStreak',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFFD95C4E),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // ======================================================
-          // TASK COUNT
-          // ======================================================
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                completedToday
-                    ? 'Practice completed'
-                    : 'Practice today',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: darkText,
-                ),
-              ),
-              Text(
-                completedToday ? '1 / 1' : '0 / 1',
-                style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 25,
                   fontWeight: FontWeight.w900,
                   color: primary,
                 ),
               ),
-            ],
-          ),
 
-          const SizedBox(height: 9),
-
-          // ======================================================
-          // REAL DAILY TASK BAR
-          // ======================================================
-
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 9,
-              backgroundColor: const Color(0xFFE9E6F2),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                completedToday
-                    ? const Color(0xFF55B97A)
-                    : primary,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          // ======================================================
-          // STATUS + XP
-          // ======================================================
-
-          Row(
-            children: [
-              Icon(
-                completedToday
-                    ? Icons.check_circle_rounded
-                    : Icons.radio_button_unchecked_rounded,
-                size: 16,
-                color: completedToday
-                    ? const Color(0xFF55B97A)
-                    : secondaryText,
-              ),
-
-              const SizedBox(width: 6),
-
-              Expanded(
-                child: Text(
-                  completedToday
-                      ? 'You completed today\'s task.'
-                      : 'Practice once today to keep your streak going.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: completedToday
-                        ? const Color(0xFF55B97A)
-                        : secondaryText,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.bolt_rounded,
-                    size: 16,
-                    color: Color(0xFFF4B400),
-                  ),
-                  const SizedBox(width: 3),
-                  Text(
-                    '$_xp XP',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: darkText,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // LEARNING PATH
-  // ============================================================
-
-  Widget _learningPath() {
-
-    final beginner =
-    _levelProgress(
-      'Beginner',
-    );
-
-    final intermediate =
-    _levelProgress(
-      'Intermediate',
-    );
-
-    final advanced =
-    _levelProgress(
-      'Advanced',
-    );
-
-    final current =
-    _displayLevel
-        .toLowerCase();
-
-    return Container(
-      width: double.infinity,
-
-      padding:
-      const EdgeInsets.all(18),
-
-      decoration:
-      BoxDecoration(
-        color: Colors.white,
-
-        borderRadius:
-        BorderRadius.circular(
-          22,
-        ),
-
-        border: Border.all(
-          color:
-          const Color(0xFFEDEAF4),
-        ),
-      ),
-
-      child: Column(
-        children: [
-
-          _pathRow(
-            Icons.looks_one_rounded,
-            'Beginner',
-            'Build your foundations',
-            beginner,
-            current ==
-                'beginner',
-          ),
-
-          _connector(),
-
-          _pathRow(
-            Icons.looks_two_rounded,
-            'Intermediate',
-            'Build fluency',
-            intermediate,
-            current ==
-                'intermediate',
-          ),
-
-          _connector(),
-
-          _pathRow(
-            Icons.looks_3_rounded,
-            'Advanced',
-            'Master communication',
-            advanced,
-            current ==
-                'advanced',
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // PATH ROW
-  // ============================================================
-
-  Widget _pathRow(
-      IconData icon,
-      String title,
-      String subtitle,
-      double progress,
-      bool current,
-      ) {
-
-    final percentage =
-    (progress * 100)
-        .round();
-
-    final hasLessons =
-        _lessonsForLevel(
-          title,
-        ).isNotEmpty;
-
-    final completed =
-        percentage >= 100;
-
-    return Row(
-      children: [
-
-        Container(
-          width: 48,
-          height: 48,
-
-          decoration:
-          BoxDecoration(
-            color: current
-                ? primary.withValues(
-              alpha: 0.14,
-            )
-                : completed
-                ? Colors.green
-                .withValues(
-              alpha: 0.14,
-            )
-                : const Color(
-              0xFFF3F1F7,
-            ),
-
-            shape:
-            BoxShape.circle,
-          ),
-
-          child: Icon(
-            completed
-                ? Icons
-                .check_rounded
-                : icon,
-
-            color: current
-                ? primary
-                : completed
-                ? Colors.green
-                : const Color(
-              0xFF9A96A5,
-            ),
-          ),
-        ),
-
-        const SizedBox(
-          width: 14,
-        ),
-
-        Expanded(
-          child: Column(
-            crossAxisAlignment:
-            CrossAxisAlignment
-                .start,
-
-            children: [
-
-              Row(
-                children: [
-
-                  Flexible(
-                    child: Text(
-                      title,
-
-                      overflow:
-                      TextOverflow
-                          .ellipsis,
-
-                      style:
-                      TextStyle(
-                        fontWeight:
-                        FontWeight.w800,
-
-                        color: current ||
-                            completed
-                            ? darkText
-                            : secondaryText,
-                      ),
-                    ),
-                  ),
-
-                  if (current) ...[
-                    const SizedBox(
-                      width: 8,
-                    ),
-
-                    Container(
-                      padding:
-                      const EdgeInsets
-                          .symmetric(
-                        horizontal: 7,
-                        vertical: 3,
-                      ),
-
-                      decoration:
-                      BoxDecoration(
-                        color:
-                        primary.withValues(
-                          alpha: 0.12,
-                        ),
-
-                        borderRadius:
-                        BorderRadius
-                            .circular(
-                          8,
-                        ),
-                      ),
-
-                      child:
-                      const Text(
-                        'CURRENT',
-
-                        style:
-                        TextStyle(
-                          color:
-                          primary,
-                          fontSize: 8,
-                          fontWeight:
-                          FontWeight
-                              .w900,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-
-              const SizedBox(
-                height: 3,
-              ),
-
-              Text(
-                hasLessons
-                    ? '$percentage% complete'
-                    : subtitle,
-
-                style:
-                const TextStyle(
+              const Text(
+                'days',
+                style: TextStyle(
                   fontSize: 11,
-                  color:
-                  secondaryText,
+                  color: secondaryText,
                 ),
               ),
-
-              if (hasLessons) ...[
-                const SizedBox(
-                  height: 6,
-                ),
-
-                ClipRRect(
-                  borderRadius:
-                  BorderRadius
-                      .circular(
-                    5,
-                  ),
-
-                  child:
-                  LinearProgressIndicator(
-                    value:
-                    progress,
-
-                    minHeight: 5,
-
-                    backgroundColor:
-                    const Color(
-                      0xFFE9E6F2,
-                    ),
-
-                    valueColor:
-                    AlwaysStoppedAnimation<
-                        Color>(
-                      current
-                          ? primary
-                          : Colors.green,
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
-        ),
-
-        const SizedBox(
-          width: 10,
-        ),
-
-        Text(
-          '$percentage%',
-
-          style:
-          TextStyle(
-            fontSize: 11,
-            fontWeight:
-            FontWeight.w800,
-            color: current
-                ? primary
-                : secondaryText,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // CONNECTOR
-  // ============================================================
-
-  Widget _connector() {
-
-    return Container(
-      margin:
-      const EdgeInsets.only(
-        left: 23,
-        top: 4,
-        bottom: 4,
+        ],
       ),
-
-      height: 20,
-      width: 2,
-
-      color:
-      const Color(0xFFE2DFEA),
     );
   }
 
   // ============================================================
-  // PRACTICE CARD
+  // CONTINUE LEARNING
   // ============================================================
 
-  Widget _practiceCard() {
-
+  Widget _continueLearningCard() {
     return GestureDetector(
-      onTap:
-      _openPractice,
+      onTap: _openLearn,
 
       child: Container(
         width: double.infinity,
+        padding: const EdgeInsets.all(19),
 
-        padding:
-        const EdgeInsets.all(
-          18,
-        ),
-
-        decoration:
-        BoxDecoration(
-          color:
-          const Color(
-            0xFFF2EFFB,
-          ),
-
-          borderRadius:
-          BorderRadius.circular(
-            22,
-          ),
+        decoration: BoxDecoration(
+          color: lightPrimary,
+          borderRadius: BorderRadius.circular(24),
         ),
 
         child: Row(
           children: [
 
             Container(
-              width: 56,
-              height: 56,
+              width: 58,
+              height: 58,
 
-              decoration:
-              BoxDecoration(
-                color:
-                Colors.white,
-
-                borderRadius:
-                BorderRadius
-                    .circular(
-                  17,
-                ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
               ),
 
-              child:
-              const Icon(
-                Icons
-                    .sports_esports_rounded,
+              child: const Icon(
+                Icons.waving_hand_rounded,
                 color: primary,
-                size: 29,
+                size: 30,
               ),
             ),
 
-            const SizedBox(
-              width: 15,
-            ),
+            const SizedBox(width: 16),
 
-            Expanded(
+            const Expanded(
               child: Column(
-                crossAxisAlignment:
-                CrossAxisAlignment
-                    .start,
+                crossAxisAlignment: CrossAxisAlignment.start,
 
                 children: [
-
                   Text(
-                    _continueLesson == null
-                        ? 'Practice Signs'
-                        : 'Practice $_continueLessonTitle',
-
-                    maxLines: 1,
-
-                    overflow:
-                    TextOverflow
-                        .ellipsis,
-
-                    style:
-                    const TextStyle(
-                      fontSize: 16,
-                      fontWeight:
-                      FontWeight.w800,
-                      color:
-                      darkText,
+                    'Greetings',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      color: darkText,
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 4,
-                  ),
+                  SizedBox(height: 4),
 
-                  const Text(
-                    'Practice what you have learned',
-
-                    style:
-                    TextStyle(
+                  Text(
+                    'Continue learning basic greetings',
+                    style: TextStyle(
                       fontSize: 12,
-                      color:
-                      secondaryText,
+                      color: secondaryText,
                     ),
                   ),
                 ],
               ),
             ),
 
-            Container(
-              width: 38,
-              height: 38,
-
-              decoration:
-              BoxDecoration(
-                color:
-                primary,
-
-                borderRadius:
-                BorderRadius.circular(
-                  13,
-                ),
-              ),
-
-              child:
-              const Icon(
-                Icons
-                    .arrow_forward_rounded,
-                color:
-                Colors.white,
-                size: 20,
-              ),
+            const Icon(
+              Icons.arrow_forward_rounded,
+              color: primary,
+              size: 27,
             ),
           ],
         ),
       ),
+    );
+  }
+
+  // ============================================================
+  // LEARNING JOURNEY CARD
+  // ============================================================
+
+  Widget _learningJourneyCard() {
+    return GestureDetector(
+      onTap: _openLearn,
+
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+
+          border: Border.all(
+            color: const Color(0xFFE8E4EF),
+          ),
+        ),
+
+        child: Column(
+          children: [
+
+            _journeyRow(
+              icon: Icons.waving_hand_rounded,
+              title: 'Greetings',
+              subtitle: '3 signs',
+              active: true,
+            ),
+
+            _journeyConnector(),
+
+            _journeyRow(
+              icon: Icons.numbers_rounded,
+              title: 'Numbers',
+              subtitle: '5 signs',
+              active: false,
+            ),
+
+            _journeyConnector(),
+
+            _journeyRow(
+              icon: Icons.palette_outlined,
+              title: 'Colors',
+              subtitle: '5 signs',
+              active: false,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _journeyRow({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool active,
+  }) {
+    return Row(
+      children: [
+
+        Container(
+          width: 54,
+          height: 54,
+
+          decoration: BoxDecoration(
+            color: active
+                ? lightPrimary
+                : const Color(0xFFF3F1F6),
+
+            shape: BoxShape.circle,
+
+            border: Border.all(
+              color: active
+                  ? primary
+                  : const Color(0xFFE0DDE5),
+
+              width: active ? 2 : 1,
+            ),
+          ),
+
+          child: Icon(
+            active
+                ? icon
+                : Icons.lock_outline_rounded,
+
+            color: active
+                ? primary
+                : const Color(0xFF9A96A5),
+
+            size: 25,
+          ),
+        ),
+
+        const SizedBox(width: 16),
+
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: active
+                      ? darkText
+                      : secondaryText,
+                ),
+              ),
+
+              const SizedBox(height: 3),
+
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: secondaryText,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        Icon(
+          active
+              ? Icons.arrow_forward_rounded
+              : Icons.lock_outline_rounded,
+
+          color: active
+              ? primary
+              : const Color(0xFFAAA6B1),
+        ),
+      ],
+    );
+  }
+
+  Widget _journeyConnector() {
+    return Container(
+      margin: const EdgeInsets.only(
+        left: 26,
+        top: 6,
+        bottom: 6,
+      ),
+
+      height: 25,
+      width: 2,
+
+      color: const Color(0xFFE5E1EA),
     );
   }
 
@@ -2473,70 +758,43 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
 
   Widget _motivationCard() {
-
     return Container(
       width: double.infinity,
+      padding: const EdgeInsets.all(21),
 
-      padding:
-      const EdgeInsets.all(
-        20,
-      ),
-
-      decoration:
-      BoxDecoration(
+      decoration: BoxDecoration(
         color: darkText,
-
-        borderRadius:
-        BorderRadius.circular(
-          22,
-        ),
+        borderRadius: BorderRadius.circular(24),
       ),
 
-      child:
-      const Column(
-        crossAxisAlignment:
-        CrossAxisAlignment
-            .start,
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
-
           Icon(
-            Icons
-                .format_quote_rounded,
-            color:
-            Colors.white54,
-            size: 30,
+            Icons.format_quote_rounded,
+            color: Colors.white54,
+            size: 32,
           ),
 
-          SizedBox(
-            height: 6,
-          ),
+          SizedBox(height: 5),
 
           Text(
-            'Every sign you learn brings you closer to communicating without barriers.',
-
-            style:
-            TextStyle(
-              color:
-              Colors.white,
+            'Every sign you learn brings you closer to better communication.',
+            style: TextStyle(
+              color: Colors.white,
               fontSize: 16,
               height: 1.5,
-              fontWeight:
-              FontWeight.w600,
+              fontWeight: FontWeight.w700,
             ),
           ),
 
-          SizedBox(
-            height: 12,
-          ),
+          SizedBox(height: 12),
 
           Text(
-            'Keep learning. Keep connecting.',
-
-            style:
-            TextStyle(
-              color:
-              Colors.white60,
+            'Keep learning. Keep practicing.',
+            style: TextStyle(
+              color: Colors.white60,
               fontSize: 12,
             ),
           ),
@@ -2546,148 +804,64 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ============================================================
-  // SECTION TITLE
+  // NAV ITEM
   // ============================================================
 
-  Widget _sectionTitle(
-      String title,
-      String action,
-      VoidCallback onTap,
-      ) {
-
-    return Row(
-      mainAxisAlignment:
-      MainAxisAlignment
-          .spaceBetween,
-
-      children: [
-
-        Expanded(
-          child: Text(
-            title,
-
-            style:
-            const TextStyle(
-              fontSize: 19,
-              fontWeight:
-              FontWeight.w900,
-              color:
-              darkText,
-            ),
-          ),
-        ),
-
-        TextButton(
-          onPressed:
-          onTap,
-
-          child:
-          Text(
-            action,
-
-            style:
-            const TextStyle(
-              color: primary,
-              fontWeight:
-              FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // BOTTOM NAV ITEM
-  // ============================================================
-
-  Widget _navItem(
-      IconData icon,
-      String label,
-      bool selected,
-      VoidCallback onTap,
-      ) {
-
-    return GestureDetector(
-      onTap:
-      onTap,
-
-      behavior:
-      HitTestBehavior.opaque,
+  Widget _navItem({
+    required IconData icon,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
 
       child: Padding(
-        padding:
-        const EdgeInsets
-            .symmetric(
+        padding: const EdgeInsets.symmetric(
           horizontal: 12,
-          vertical: 5,
+          vertical: 7,
         ),
 
         child: Column(
-          mainAxisSize:
-          MainAxisSize.min,
+          mainAxisSize: MainAxisSize.min,
 
           children: [
 
-            AnimatedContainer(
-              duration:
-              const Duration(
-                milliseconds: 200,
-              ),
-
-              width:
-              selected
-                  ? 48
-                  : 42,
-
+            Container(
+              width: 48,
               height: 32,
 
-              decoration:
-              BoxDecoration(
+              decoration: BoxDecoration(
                 color: selected
                     ? lightPrimary
                     : Colors.transparent,
 
-                borderRadius:
-                BorderRadius.circular(
-                  14,
-                ),
+                borderRadius: BorderRadius.circular(14),
               ),
 
               child: Icon(
                 icon,
-
-                size: 22,
-
                 color: selected
                     ? primary
-                    : const Color(
-                  0xFF8A8695,
-                ),
+                    : secondaryText,
+                size: 23,
               ),
             ),
 
-            const SizedBox(
-              height: 3,
-            ),
+            const SizedBox(height: 3),
 
             Text(
               label,
-
-              style:
-              TextStyle(
-                fontSize: 10,
-
-                fontWeight:
-                selected
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: selected
                     ? FontWeight.w800
                     : FontWeight.w500,
 
                 color: selected
                     ? primary
-                    : const Color(
-                  0xFF8A8695,
-                ),
+                    : secondaryText,
               ),
             ),
           ],
