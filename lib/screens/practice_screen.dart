@@ -15,35 +15,72 @@ class PracticeScreen extends StatefulWidget {
 
 class _PracticeScreenState extends State<PracticeScreen>
     with WidgetsBindingObserver {
+  // ============================================================
+  // STATE
+  // ============================================================
+
   int currentIndex = 0;
-  bool showAnswer = false;
 
   CameraController? _cameraController;
   List<CameraDescription> _cameras = [];
 
   bool _cameraLoading = true;
   bool _cameraError = false;
-  bool _cameraStarted = false;
-  bool _photoTaken = false;
+
+  bool _isRecording = false;
+  bool _videoRecorded = false;
+  bool _checkingSign = false;
+
+  XFile? _recordedVideo;
+
+  String? _result;
+  String? _resultMessage;
+
+  // ============================================================
+  // SIGNS
+  // ============================================================
 
   final List<Map<String, String>> signs = [
     {
       'word': 'Hello',
-      'description': 'A friendly greeting used when meeting someone.',
+      'description':
+      'Perform the Indian Sign Language sign for Hello.',
     },
     {
       'word': 'Thank You',
-      'description': 'Used to express gratitude or appreciation.',
+      'description':
+      'Perform the Indian Sign Language sign for Thank You.',
     },
     {
-      'word': 'Good Morning',
-      'description': 'A greeting used in the morning.',
+      'word': 'Welcome',
+      'description':
+      'Perform the Indian Sign Language sign for Welcome.',
     },
     {
-      'word': 'Goodbye',
-      'description': 'Used when leaving or saying farewell.',
+      'word': 'Please',
+      'description':
+      'Perform the Indian Sign Language sign for Please.',
+    },
+    {
+      'word': 'Sorry',
+      'description':
+      'Perform the Indian Sign Language sign for Sorry.',
+    },
+    {
+      'word': 'No',
+      'description':
+      'Perform the Indian Sign Language sign for No.',
+    },
+    {
+      'word': 'Bye',
+      'description':
+      'Perform the Indian Sign Language sign for Bye.',
     },
   ];
+
+  // ============================================================
+  // INIT
+  // ============================================================
 
   @override
   void initState() {
@@ -54,6 +91,10 @@ class _PracticeScreenState extends State<PracticeScreen>
     _initializeCamera();
   }
 
+  // ============================================================
+  // DISPOSE
+  // ============================================================
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -63,11 +104,16 @@ class _PracticeScreenState extends State<PracticeScreen>
     super.dispose();
   }
 
+  // ============================================================
+  // APP LIFECYCLE
+  // ============================================================
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final controller = _cameraController;
 
-    if (controller == null || !controller.value.isInitialized) {
+    if (controller == null ||
+        !controller.value.isInitialized) {
       return;
     }
 
@@ -78,12 +124,18 @@ class _PracticeScreenState extends State<PracticeScreen>
     }
   }
 
+  // ============================================================
+  // INITIALIZE CAMERA
+  // ============================================================
+
   Future<void> _initializeCamera() async {
     try {
-      setState(() {
-        _cameraLoading = true;
-        _cameraError = false;
-      });
+      if (mounted) {
+        setState(() {
+          _cameraLoading = true;
+          _cameraError = false;
+        });
+      }
 
       _cameras = await availableCameras();
 
@@ -93,8 +145,10 @@ class _PracticeScreenState extends State<PracticeScreen>
 
       CameraDescription selectedCamera = _cameras.first;
 
+      // Prefer front camera
       for (final camera in _cameras) {
-        if (camera.lensDirection == CameraLensDirection.front) {
+        if (camera.lensDirection ==
+            CameraLensDirection.front) {
           selectedCamera = camera;
           break;
         }
@@ -114,9 +168,11 @@ class _PracticeScreenState extends State<PracticeScreen>
 
       setState(() {
         _cameraLoading = false;
-        _cameraStarted = true;
+        _cameraError = false;
       });
     } catch (e) {
+      debugPrint('Camera initialization error: $e');
+
       if (!mounted) return;
 
       setState(() {
@@ -126,75 +182,283 @@ class _PracticeScreenState extends State<PracticeScreen>
     }
   }
 
-  Future<void> _capturePractice() async {
+  // ============================================================
+  // START / STOP RECORDING
+  // ============================================================
+
+  Future<void> _toggleVideoRecording() async {
     final controller = _cameraController;
 
-    if (controller == null || !controller.value.isInitialized) {
+    if (controller == null ||
+        !controller.value.isInitialized) {
       return;
     }
 
     try {
-      await controller.takePicture();
+      // --------------------------------------------------------
+      // START
+      // --------------------------------------------------------
+
+      if (!_isRecording) {
+        await controller.startVideoRecording();
+
+        if (!mounted) return;
+
+        setState(() {
+          _isRecording = true;
+          _videoRecorded = false;
+          _recordedVideo = null;
+          _result = null;
+          _resultMessage = null;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Recording started. Perform the sign now!',
+            ),
+            backgroundColor: Color(0xFF6C63A8),
+          ),
+        );
+
+        return;
+      }
+
+      // --------------------------------------------------------
+      // STOP
+      // --------------------------------------------------------
+
+      final XFile video =
+      await controller.stopVideoRecording();
 
       if (!mounted) return;
 
       setState(() {
-        _photoTaken = true;
+        _isRecording = false;
+        _videoRecorded = true;
+        _recordedVideo = video;
+        _result = null;
+        _resultMessage = null;
+      });
+
+      debugPrint('========================================');
+      debugPrint('VIDEO RECORDED');
+      debugPrint(
+        'SIGN: ${signs[currentIndex]['word']}',
+      );
+      debugPrint('VIDEO PATH: ${video.path}');
+      debugPrint('========================================');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Video captured successfully!',
+          ),
+          backgroundColor: Color(0xFF55B97A),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Video recording error: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _isRecording = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${signs[currentIndex]['word']} captured successfully!',
+            'Could not record video: $e',
           ),
-          backgroundColor: const Color(0xFF55B97A),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not capture the practice image.'),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
 
+  // ============================================================
+  // CHECK SIGN
+  //
+  // IMPORTANT:
+  // This currently confirms that the video was captured.
+  // Connect your ML/API endpoint here when your prediction
+  // backend is ready.
+  // ============================================================
+
+  Future<void> _checkSign() async {
+    if (_recordedVideo == null) {
+      return;
+    }
+
+    setState(() {
+      _checkingSign = true;
+      _result = null;
+      _resultMessage = null;
+    });
+
+    try {
+      /*
+       * ========================================================
+       * YOUR ML API GOES HERE
+       * ========================================================
+       *
+       * Example future flow:
+       *
+       * final result = await ApiService.predictSign(
+       *   _recordedVideo!,
+       *   signs[currentIndex]['word']!,
+       * );
+       *
+       * if (result['correct'] == true) {
+       *   ...
+       * }
+       *
+       * Do NOT fake an AI prediction here.
+       *
+       * For now we only confirm that the video has been
+       * successfully captured and is ready for the ML backend.
+       */
+
+      await Future.delayed(
+        const Duration(milliseconds: 700),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _checkingSign = false;
+        _result = 'READY';
+        _resultMessage =
+        'Your video is captured and ready for AI analysis.';
+      });
+    } catch (e) {
+      debugPrint('Sign checking error: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _checkingSign = false;
+        _result = 'ERROR';
+        _resultMessage =
+        'Unable to check the sign right now.';
+      });
+    }
+  }
+
+  // ============================================================
+  // RETAKE
+  // ============================================================
+
+  void _retakeVideo() {
+    setState(() {
+      _videoRecorded = false;
+      _recordedVideo = null;
+      _isRecording = false;
+      _checkingSign = false;
+      _result = null;
+      _resultMessage = null;
+    });
+  }
+
+  // ============================================================
+  // NEXT SIGN
+  // ============================================================
+
   void nextSign() {
+    if (_isRecording) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Stop recording before continuing.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    if (!_videoRecorded) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Record your sign before continuing.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
     if (currentIndex < signs.length - 1) {
       setState(() {
         currentIndex++;
-        showAnswer = false;
-        _photoTaken = false;
+
+        _videoRecorded = false;
+        _recordedVideo = null;
+        _isRecording = false;
+        _checkingSign = false;
+        _result = null;
+        _resultMessage = null;
       });
     } else {
-      showPracticeComplete();
+      _showPracticeComplete();
     }
   }
 
+  // ============================================================
+  // PREVIOUS SIGN
+  // ============================================================
+
   void previousSign() {
+    if (_isRecording) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Stop recording before going back.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
     if (currentIndex > 0) {
       setState(() {
         currentIndex--;
-        showAnswer = false;
-        _photoTaken = false;
+
+        _videoRecorded = false;
+        _recordedVideo = null;
+        _isRecording = false;
+        _checkingSign = false;
+        _result = null;
+        _resultMessage = null;
       });
     }
   }
 
-  void showPracticeComplete() {
+  // ============================================================
+  // PRACTICE COMPLETE
+  // ============================================================
+
+  void _showPracticeComplete() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFFFFFBF5),
+          backgroundColor:
+          const Color(0xFFFFFBF5),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
-          contentPadding: const EdgeInsets.fromLTRB(24, 30, 24, 20),
+          contentPadding:
+          const EdgeInsets.fromLTRB(
+            24,
+            30,
+            24,
+            20,
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -227,7 +491,8 @@ class _PracticeScreenState extends State<PracticeScreen>
               const SizedBox(height: 8),
 
               Text(
-                'You practiced all ${signs.length} signs in ${widget.chapterTitle}.',
+                'You recorded all ${signs.length} '
+                    'signs in ${widget.chapterTitle}.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 14,
@@ -247,9 +512,11 @@ class _PracticeScreenState extends State<PracticeScreen>
                     Navigator.pop(context);
                   },
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF6C63A8),
+                    backgroundColor:
+                    const Color(0xFF6C63A8),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
+                      borderRadius:
+                      BorderRadius.circular(15),
                     ),
                   ),
                   child: const Text(
@@ -267,6 +534,10 @@ class _PracticeScreenState extends State<PracticeScreen>
     );
   }
 
+  // ============================================================
+  // CAMERA
+  // ============================================================
+
   Widget _buildCamera() {
     if (_cameraLoading) {
       return const Center(
@@ -280,7 +551,8 @@ class _PracticeScreenState extends State<PracticeScreen>
         _cameraController == null ||
         !_cameraController!.value.isInitialized) {
       return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment:
+        MainAxisAlignment.center,
         children: [
           const Icon(
             Icons.camera_alt_outlined,
@@ -313,42 +585,115 @@ class _PracticeScreenState extends State<PracticeScreen>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          CameraPreview(_cameraController!),
+          // ------------------------------------------------------
+          // CAMERA PREVIEW
+          // ------------------------------------------------------
+
+          CameraPreview(
+            _cameraController!,
+          ),
+
+          // ------------------------------------------------------
+          // BORDER
+          // ------------------------------------------------------
 
           Container(
             decoration: BoxDecoration(
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.75),
+                color: Colors.white.withValues(
+                  alpha: 0.75,
+                ),
                 width: 3,
               ),
-              borderRadius: BorderRadius.circular(28),
+              borderRadius:
+              BorderRadius.circular(28),
             ),
           ),
+
+          // ------------------------------------------------------
+          // SIGN INSTRUCTION
+          // ------------------------------------------------------
 
           Positioned(
             top: 18,
             left: 18,
             right: 18,
             child: Container(
-              padding: const EdgeInsets.symmetric(
+              padding:
+              const EdgeInsets.symmetric(
                 horizontal: 14,
                 vertical: 10,
               ),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(14),
+                color: Colors.black.withValues(
+                  alpha: 0.50,
+                ),
+                borderRadius:
+                BorderRadius.circular(14),
               ),
               child: Text(
-                'Show the sign: ${signs[currentIndex]['word']}',
+                'Perform: '
+                    '${signs[currentIndex]['word']}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
           ),
+
+          // ------------------------------------------------------
+          // RECORDING INDICATOR
+          // ------------------------------------------------------
+
+          if (_isRecording)
+            Positioned(
+              top: 75,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding:
+                  const EdgeInsets.symmetric(
+                    horizontal: 15,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(
+                      alpha: 0.90,
+                    ),
+                    borderRadius:
+                    BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.fiber_manual_record,
+                        color: Colors.white,
+                        size: 13,
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'RECORDING',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight:
+                          FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // ------------------------------------------------------
+          // RECORD BUTTON
+          // ------------------------------------------------------
 
           Positioned(
             bottom: 22,
@@ -356,22 +701,47 @@ class _PracticeScreenState extends State<PracticeScreen>
             right: 0,
             child: Center(
               child: GestureDetector(
-                onTap: _capturePractice,
-                child: Container(
-                  width: 72,
-                  height: 72,
+                onTap: _toggleVideoRecording,
+                child: AnimatedContainer(
+                  duration:
+                  const Duration(
+                    milliseconds: 200,
+                  ),
+                  width:
+                  _isRecording ? 84 : 76,
+                  height:
+                  _isRecording ? 84 : 76,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: _isRecording
+                        ? Colors.red
+                        : Colors.white,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFF6C63A8),
+                      color: _isRecording
+                          ? Colors.white
+                          : const Color(
+                        0xFF6C63A8,
+                      ),
                       width: 5,
                     ),
+                    boxShadow: const [
+                      BoxShadow(
+                        blurRadius: 15,
+                        spreadRadius: 2,
+                        color: Colors.black26,
+                      ),
+                    ],
                   ),
-                  child: const Icon(
-                    Icons.camera_alt_rounded,
-                    color: Color(0xFF6C63A8),
-                    size: 30,
+                  child: Icon(
+                    _isRecording
+                        ? Icons.stop_rounded
+                        : Icons.videocam_rounded,
+                    color: _isRecording
+                        ? Colors.white
+                        : const Color(
+                      0xFF6C63A8,
+                    ),
+                    size: 34,
                   ),
                 ),
               ),
@@ -382,6 +752,70 @@ class _PracticeScreenState extends State<PracticeScreen>
     );
   }
 
+  // ============================================================
+  // RESULT CARD
+  // ============================================================
+
+  Widget _buildResultCard() {
+    if (_result == null) {
+      return const SizedBox.shrink();
+    }
+
+    final bool error = _result == 'ERROR';
+
+    return Container(
+      margin:
+      const EdgeInsets.symmetric(
+        horizontal: 24,
+      ),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: error
+            ? const Color(0xFFFFEAEA)
+            : const Color(0xFFEAF7EE),
+        borderRadius:
+        BorderRadius.circular(18),
+        border: Border.all(
+          color: error
+              ? const Color(0xFFFFC7C7)
+              : const Color(0xFFC9EBD3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            error
+                ? Icons.error_outline_rounded
+                : Icons.check_circle_rounded,
+            color: error
+                ? Colors.red
+                : const Color(0xFF55B97A),
+            size: 28,
+          ),
+
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Text(
+              _resultMessage ?? '',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: error
+                    ? Colors.red.shade700
+                    : const Color(0xFF3C8156),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     final sign = signs[currentIndex];
@@ -390,21 +824,45 @@ class _PracticeScreenState extends State<PracticeScreen>
         (currentIndex + 1) / signs.length;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFBF5),
+      backgroundColor:
+      const Color(0xFFFFFBF5),
+
+      // ========================================================
+      // APP BAR
+      // ========================================================
 
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFFBF5),
+        backgroundColor:
+        const Color(0xFFFFFBF5),
         elevation: 0,
         scrolledUnderElevation: 0,
 
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          color: const Color(0xFF29263D),
-          onPressed: () => Navigator.pop(context),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+          ),
+          color:
+          const Color(0xFF29263D),
+          onPressed: () {
+            if (_isRecording) {
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Stop recording before leaving.',
+                  ),
+                ),
+              );
+
+              return;
+            }
+
+            Navigator.pop(context);
+          },
         ),
 
         title: const Text(
-          'Camera Practice',
+          'Video Practice',
           style: TextStyle(
             fontSize: 19,
             fontWeight: FontWeight.w800,
@@ -415,23 +873,41 @@ class _PracticeScreenState extends State<PracticeScreen>
         centerTitle: true,
       ),
 
+      // ========================================================
+      // BODY
+      // ========================================================
+
       body: SafeArea(
         child: Column(
           children: [
+            // --------------------------------------------------
+            // PROGRESS
+            // --------------------------------------------------
+
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding:
+              const EdgeInsets.symmetric(
+                horizontal: 24,
+              ),
               child: Row(
                 children: [
                   Expanded(
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: LinearProgressIndicator(
+                      borderRadius:
+                      BorderRadius.circular(
+                        10,
+                      ),
+                      child:
+                      LinearProgressIndicator(
                         value: progress,
                         minHeight: 7,
                         backgroundColor:
-                        const Color(0xFFE8E4F2),
+                        const Color(
+                          0xFFE8E4F2,
+                        ),
                         valueColor:
-                        const AlwaysStoppedAnimation<Color>(
+                        const AlwaysStoppedAnimation<
+                            Color>(
                           Color(0xFF6C63A8),
                         ),
                       ),
@@ -444,15 +920,21 @@ class _PracticeScreenState extends State<PracticeScreen>
                     '${currentIndex + 1}/${signs.length}',
                     style: const TextStyle(
                       fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF777281),
+                      fontWeight:
+                      FontWeight.w700,
+                      color:
+                      Color(0xFF777281),
                     ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
+
+            // --------------------------------------------------
+            // CHAPTER
+            // --------------------------------------------------
 
             Text(
               widget.chapterTitle.toUpperCase(),
@@ -464,7 +946,11 @@ class _PracticeScreenState extends State<PracticeScreen>
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 7),
+
+            // --------------------------------------------------
+            // WORD
+            // --------------------------------------------------
 
             Text(
               'Make the sign: ${sign['word']}',
@@ -475,94 +961,226 @@ class _PracticeScreenState extends State<PracticeScreen>
               ),
             ),
 
-            const SizedBox(height: 6),
+            const SizedBox(height: 5),
+
+            // --------------------------------------------------
+            // DESCRIPTION
+            // --------------------------------------------------
+
+            Padding(
+              padding:
+              const EdgeInsets.symmetric(
+                horizontal: 24,
+              ),
+              child: Text(
+                sign['description']!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF777281),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 7),
 
             const Text(
-              'Position your hand clearly inside the camera.',
+              'Tap the video button, perform the sign, '
+                  'then tap stop.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 13,
                 color: Color(0xFF777281),
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 14),
+
+            // --------------------------------------------------
+            // CAMERA
+            // --------------------------------------------------
 
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
+                padding:
+                const EdgeInsets.symmetric(
                   horizontal: 24,
                 ),
                 child: Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
                     color: Colors.black,
-                    borderRadius: BorderRadius.circular(28),
+                    borderRadius:
+                    BorderRadius.circular(28),
                     border: Border.all(
-                      color: const Color(0xFFE7E2EF),
+                      color:
+                      const Color(0xFFE7E2EF),
                     ),
                   ),
+                  clipBehavior:
+                  Clip.antiAlias,
                   child: _buildCamera(),
                 ),
               ),
             ),
 
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
 
-            if (_photoTaken)
+            // --------------------------------------------------
+            // RECORDED STATUS
+            // --------------------------------------------------
+
+            if (_videoRecorded)
               Container(
-                margin: const EdgeInsets.symmetric(
+                margin:
+                const EdgeInsets.symmetric(
                   horizontal: 24,
                 ),
-                padding: const EdgeInsets.all(14),
+                padding:
+                const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEAF7EE),
-                  borderRadius: BorderRadius.circular(16),
+                  color:
+                  const Color(0xFFEAF7EE),
+                  borderRadius:
+                  BorderRadius.circular(16),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.check_circle_rounded,
-                      color: Color(0xFF55B97A),
+                      color:
+                      Color(0xFF55B97A),
                     ),
 
-                    SizedBox(width: 10),
+                    const SizedBox(width: 9),
 
-                    Expanded(
+                    const Expanded(
                       child: Text(
-                        'Practice captured. You can continue to the next sign.',
+                        'Video captured successfully.',
                         style: TextStyle(
                           fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF3C8156),
+                          fontWeight:
+                          FontWeight.w600,
+                          color:
+                          Color(0xFF3C8156),
                         ),
                       ),
+                    ),
+
+                    TextButton(
+                      onPressed:
+                      _checkingSign
+                          ? null
+                          : _retakeVideo,
+                      child:
+                      const Text('Retake'),
                     ),
                   ],
                 ),
               ),
 
-            const SizedBox(height: 12),
+            // --------------------------------------------------
+            // CHECK BUTTON
+            // --------------------------------------------------
+
+            if (_videoRecorded &&
+                _result == null)
+              Padding(
+                padding:
+                const EdgeInsets.fromLTRB(
+                  24,
+                  8,
+                  24,
+                  0,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed: _checkingSign
+                        ? null
+                        : _checkSign,
+                    icon: _checkingSign
+                        ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child:
+                      CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color:
+                        Colors.white,
+                      ),
+                    )
+                        : const Icon(
+                      Icons.psychology_rounded,
+                    ),
+                    label: Text(
+                      _checkingSign
+                          ? 'Checking...'
+                          : 'Check My Sign',
+                    ),
+                    style:
+                    FilledButton.styleFrom(
+                      backgroundColor:
+                      const Color(
+                        0xFF6C63A8,
+                      ),
+                      shape:
+                      RoundedRectangleBorder(
+                        borderRadius:
+                        BorderRadius.circular(
+                          15,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // --------------------------------------------------
+            // RESULT
+            // --------------------------------------------------
+
+            if (_result != null) ...[
+              const SizedBox(height: 8),
+              _buildResultCard(),
+            ],
+
+            const SizedBox(height: 8),
+
+            // --------------------------------------------------
+            // BOTTOM CONTROLS
+            // --------------------------------------------------
 
             Container(
-              padding: const EdgeInsets.fromLTRB(
+              padding:
+              const EdgeInsets.fromLTRB(
                 24,
-                14,
+                10,
                 24,
-                20,
+                18,
               ),
               child: Row(
                 children: [
+                  // PREVIOUS
                   SizedBox(
                     width: 52,
                     height: 52,
                     child: OutlinedButton(
                       onPressed:
-                      currentIndex == 0 ? null : previousSign,
-                      style: OutlinedButton.styleFrom(
+                      _isRecording ||
+                          currentIndex == 0
+                          ? null
+                          : previousSign,
+                      style:
+                      OutlinedButton.styleFrom(
                         padding: EdgeInsets.zero,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
+                        shape:
+                        RoundedRectangleBorder(
+                          borderRadius:
+                          BorderRadius.circular(
+                            15,
+                          ),
                         ),
                       ),
                       child: const Icon(
@@ -573,28 +1191,44 @@ class _PracticeScreenState extends State<PracticeScreen>
 
                   const SizedBox(width: 12),
 
+                  // NEXT
                   Expanded(
                     child: SizedBox(
                       height: 52,
                       child: FilledButton(
                         onPressed:
-                        _photoTaken ? nextSign : null,
-                        style: FilledButton.styleFrom(
+                        _isRecording ||
+                            !_videoRecorded
+                            ? null
+                            : nextSign,
+                        style:
+                        FilledButton.styleFrom(
                           backgroundColor:
-                          const Color(0xFF6C63A8),
+                          const Color(
+                            0xFF6C63A8,
+                          ),
                           disabledBackgroundColor:
-                          const Color(0xFFE1DEEA),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
+                          const Color(
+                            0xFFE1DEEA,
+                          ),
+                          shape:
+                          RoundedRectangleBorder(
+                            borderRadius:
+                            BorderRadius.circular(
+                              15,
+                            ),
                           ),
                         ),
                         child: Text(
-                          currentIndex == signs.length - 1
+                          currentIndex ==
+                              signs.length - 1
                               ? 'Finish Practice'
-                              : 'Next Sign',
-                          style: const TextStyle(
+                              : 'Next Sign →',
+                          style:
+                          const TextStyle(
                             fontSize: 15,
-                            fontWeight: FontWeight.w700,
+                            fontWeight:
+                            FontWeight.w700,
                           ),
                         ),
                       ),
