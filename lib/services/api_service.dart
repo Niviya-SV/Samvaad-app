@@ -13,16 +13,9 @@ class ApiService {
       return 'http://localhost:8080/api';
     }
 
-    // Android Emulator + Physical Android Phone
-    //
-    // This is your PC's current LAN IP.
-    // PC and phone must be connected to the same network.
-    const host = String.fromEnvironment(
-      'API_HOST',
-      defaultValue: '192.168.76.181',
-    );
-
-    return 'http://$host:8080/api';
+    // Android Emulator
+    // 10.0.2.2 points to localhost on your computer.
+    return 'http://10.0.2.2:8080/api';
   }
 
   // =========================================================
@@ -211,8 +204,7 @@ class ApiService {
       int lessonId, {
         double? score,
       }) async {
-    String url =
-        '$baseUrl/progress/lesson/$lessonId/complete';
+    String url = '$baseUrl/progress/lesson/$lessonId/complete';
 
     if (score != null) {
       url += '?score=$score';
