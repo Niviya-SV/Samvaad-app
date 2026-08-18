@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/api_service.dart';
 import '../services/app_storage.dart';
 
 import 'learn_screen.dart';
@@ -27,34 +28,19 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // ============================================================
-  // COLORS
-  // ============================================================
-
   static const Color primary = Color(0xFF6C63A8);
   static const Color darkText = Color(0xFF29263D);
   static const Color secondaryText = Color(0xFF706B7C);
   static const Color background = Color(0xFFFFFBF5);
   static const Color lightPrimary = Color(0xFFEAE6F8);
 
-  // ============================================================
-  // USER DATA
-  // ============================================================
-
   String _name = '';
   String _email = '';
   String _goal = '';
-  String _level = '';
 
   bool _isLoading = true;
 
-  // For now this can later be connected directly to the backend
   int _streak = 0;
-  int _xp = 0;
-
-  // ============================================================
-  // INIT
-  // ============================================================
 
   @override
   void initState() {
@@ -63,60 +49,77 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ============================================================
-  // LOAD USER DATA
+  // LOAD USER DATA + STREAK
   // ============================================================
 
   Future<void> _loadLearnerData() async {
-    final name = await AppStorage.getName();
-    final email = await AppStorage.getEmail();
-    final goal = await AppStorage.getGoal();
-    final level = await AppStorage.getLevel();
+    try {
+      final name = await AppStorage.getName();
+      final email = await AppStorage.getEmail();
+      final goal = await AppStorage.getGoal();
 
-    if (!mounted) return;
+      // getToken() returns String?, so null becomes ''
+      final token = await AppStorage.getToken() ?? '';
 
-    setState(() {
-      _name = name.isNotEmpty
-          ? name
-          : (widget.learnerName ?? '');
+      int streak = 0;
 
-      _email = email.isNotEmpty
-          ? email
-          : (widget.email ?? '');
+      if (token.isNotEmpty) {
+        try {
+          final statistics =
+          await ApiService.getStatistics(token);
 
-      _goal = goal.isNotEmpty
-          ? goal
-          : (widget.goal ?? '');
+          streak = int.tryParse(
+            statistics['currentStreak']?.toString() ?? '0',
+          ) ??
+              0;
 
-      _level = level.isNotEmpty
-          ? level
-          : (widget.level ?? '');
+          debugPrint('Current streak: $streak');
+        } catch (e) {
+          debugPrint(
+            'Failed to load statistics: $e',
+          );
+        }
+      }
 
-      _isLoading = false;
-    });
+      if (!mounted) return;
+
+      setState(() {
+        _name = name.isNotEmpty
+            ? name
+            : (widget.learnerName ?? '');
+
+        _email = email.isNotEmpty
+            ? email
+            : (widget.email ?? '');
+
+        _goal = goal.isNotEmpty
+            ? goal
+            : (widget.goal ?? '');
+
+        _streak = streak;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Failed to load home data: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
-  // ============================================================
-  // DISPLAY NAME
-  // ============================================================
-
   String get _displayName {
-    final value = _name.trim();
-
-    if (value.isEmpty) {
+    if (_name.trim().isEmpty) {
       return 'Learner';
     }
 
-    return value;
+    return _name.trim();
   }
 
   String get _firstName {
-    final value = _displayName.trim();
-
-    if (value.isEmpty) {
-      return 'Learner';
-    }
-
-    return value.split(' ').first;
+    return _displayName.split(' ').first;
   }
 
   String get _displayGoal {
@@ -139,9 +142,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    if (!mounted) return;
-
-    _loadLearnerData();
+    if (mounted) {
+      await _loadLearnerData();
+    }
   }
 
   Future<void> _openPractice() async {
@@ -154,9 +157,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    if (!mounted) return;
-
-    _loadLearnerData();
+    if (mounted) {
+      await _loadLearnerData();
+    }
   }
 
   Future<void> _openProfile() async {
@@ -171,9 +174,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    if (!mounted) return;
-
-    _loadLearnerData();
+    if (mounted) {
+      await _loadLearnerData();
+    }
   }
 
   Future<void> _openSettings() async {
@@ -214,16 +217,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: background,
 
-      // ========================================================
-      // APP BAR
-      // ========================================================
-
       appBar: AppBar(
         backgroundColor: background,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         automaticallyImplyLeading: false,
-
         title: const Text(
           'SAMVAAD',
           style: TextStyle(
@@ -233,10 +231,8 @@ class _HomeScreenState extends State<HomeScreen> {
             letterSpacing: 1.5,
           ),
         ),
-
         actions: [
           IconButton(
-            tooltip: 'Notifications',
             onPressed: _openNotifications,
             icon: const Icon(
               Icons.notifications_none_rounded,
@@ -244,9 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
               size: 27,
             ),
           ),
-
           IconButton(
-            tooltip: 'Settings',
             onPressed: _openSettings,
             icon: const Icon(
               Icons.settings_outlined,
@@ -254,37 +248,24 @@ class _HomeScreenState extends State<HomeScreen> {
               size: 26,
             ),
           ),
-
           const SizedBox(width: 6),
         ],
       ),
 
-      // ========================================================
-      // BODY
-      // ========================================================
-
       body: RefreshIndicator(
         color: primary,
         onRefresh: _loadLearnerData,
-
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-
           padding: const EdgeInsets.fromLTRB(
             20,
             10,
             20,
             100,
           ),
-
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
-              // ==================================================
-              // GREETING
-              // ==================================================
-
               Text(
                 'Hello, $_firstName 👋',
                 style: const TextStyle(
@@ -306,17 +287,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 28),
 
-              // ==================================================
-              // STREAK CARD
-              // ==================================================
-
               _streakCard(),
 
               const SizedBox(height: 30),
-
-              // ==================================================
-              // CONTINUE LEARNING
-              // ==================================================
 
               const Text(
                 'Continue Learning',
@@ -332,10 +305,6 @@ class _HomeScreenState extends State<HomeScreen> {
               _continueLearningCard(),
 
               const SizedBox(height: 30),
-
-              // ==================================================
-              // LEARNING PATH
-              // ==================================================
 
               const Text(
                 'Your Learning Journey',
@@ -362,26 +331,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 30),
 
-              // ==================================================
-              // MOTIVATION
-              // ==================================================
-
               _motivationCard(),
             ],
           ),
         ),
       ),
 
-      // ========================================================
-      // BOTTOM NAVIGATION
-      // ========================================================
-
       bottomNavigationBar: SafeArea(
         top: false,
-
         child: Container(
           height: 76,
-
           decoration: const BoxDecoration(
             color: Colors.white,
             border: Border(
@@ -390,10 +349,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-
+            mainAxisAlignment:
+            MainAxisAlignment.spaceAround,
             children: [
               _navItem(
                 icon: Icons.home_rounded,
@@ -401,21 +359,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 selected: true,
                 onTap: () {},
               ),
-
               _navItem(
                 icon: Icons.menu_book_outlined,
                 label: 'Learn',
                 selected: false,
                 onTap: _openLearn,
               ),
-
               _navItem(
                 icon: Icons.videocam_outlined,
                 label: 'Practice',
                 selected: false,
                 onTap: _openPractice,
               ),
-
               _navItem(
                 icon: Icons.person_outline_rounded,
                 label: 'Profile',
@@ -437,28 +392,22 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-
         border: Border.all(
           color: const Color(0xFFE8E4EF),
         ),
       ),
-
       child: Row(
         children: [
-
           Container(
             width: 64,
             height: 64,
-
             decoration: BoxDecoration(
               color: const Color(0xFFFFF3E4),
               borderRadius: BorderRadius.circular(20),
             ),
-
             child: const Icon(
               Icons.local_fire_department_rounded,
               color: Color(0xFFFF922B),
@@ -470,8 +419,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Learning Streak',
@@ -481,9 +430,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: darkText,
                   ),
                 ),
-
                 const SizedBox(height: 5),
-
                 Text(
                   _streak == 0
                       ? 'Start learning today to build your streak!'
@@ -507,7 +454,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: primary,
                 ),
               ),
-
               const Text(
                 'days',
                 style: TextStyle(
@@ -529,28 +475,22 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _continueLearningCard() {
     return GestureDetector(
       onTap: _openLearn,
-
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(19),
-
         decoration: BoxDecoration(
           color: lightPrimary,
           borderRadius: BorderRadius.circular(24),
         ),
-
         child: Row(
           children: [
-
             Container(
               width: 58,
               height: 58,
-
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(18),
               ),
-
               child: const Icon(
                 Icons.waving_hand_rounded,
                 color: primary,
@@ -562,8 +502,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Greetings',
@@ -573,9 +513,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: darkText,
                     ),
                   ),
-
                   SizedBox(height: 4),
-
                   Text(
                     'Continue learning basic greetings',
                     style: TextStyle(
@@ -599,29 +537,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ============================================================
-  // LEARNING JOURNEY CARD
+  // LEARNING JOURNEY
   // ============================================================
 
   Widget _learningJourneyCard() {
     return GestureDetector(
       onTap: _openLearn,
-
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
-
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
-
           border: Border.all(
             color: const Color(0xFFE8E4EF),
           ),
         ),
-
         child: Column(
           children: [
-
             _journeyRow(
               icon: Icons.waving_hand_rounded,
               title: 'Greetings',
@@ -660,36 +593,28 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     return Row(
       children: [
-
         Container(
           width: 54,
           height: 54,
-
           decoration: BoxDecoration(
             color: active
                 ? lightPrimary
                 : const Color(0xFFF3F1F6),
-
             shape: BoxShape.circle,
-
             border: Border.all(
               color: active
                   ? primary
                   : const Color(0xFFE0DDE5),
-
               width: active ? 2 : 1,
             ),
           ),
-
           child: Icon(
             active
                 ? icon
                 : Icons.lock_outline_rounded,
-
             color: active
                 ? primary
                 : const Color(0xFF9A96A5),
-
             size: 25,
           ),
         ),
@@ -698,8 +623,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-
+            crossAxisAlignment:
+            CrossAxisAlignment.start,
             children: [
               Text(
                 title,
@@ -711,9 +636,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       : secondaryText,
                 ),
               ),
-
               const SizedBox(height: 3),
-
               Text(
                 subtitle,
                 style: const TextStyle(
@@ -729,7 +652,6 @@ class _HomeScreenState extends State<HomeScreen> {
           active
               ? Icons.arrow_forward_rounded
               : Icons.lock_outline_rounded,
-
           color: active
               ? primary
               : const Color(0xFFAAA6B1),
@@ -745,10 +667,8 @@ class _HomeScreenState extends State<HomeScreen> {
         top: 6,
         bottom: 6,
       ),
-
       height: 25,
       width: 2,
-
       color: const Color(0xFFE5E1EA),
     );
   }
@@ -761,24 +681,20 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(21),
-
       decoration: BoxDecoration(
         color: darkText,
         borderRadius: BorderRadius.circular(24),
       ),
-
       child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
         children: [
           Icon(
             Icons.format_quote_rounded,
             color: Colors.white54,
             size: 32,
           ),
-
           SizedBox(height: 5),
-
           Text(
             'Every sign you learn brings you closer to better communication.',
             style: TextStyle(
@@ -788,9 +704,7 @@ class _HomeScreenState extends State<HomeScreen> {
               fontWeight: FontWeight.w700,
             ),
           ),
-
           SizedBox(height: 12),
-
           Text(
             'Keep learning. Keep practicing.',
             style: TextStyle(
@@ -804,7 +718,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ============================================================
-  // NAV ITEM
+  // BOTTOM NAVIGATION ITEM
   // ============================================================
 
   Widget _navItem({
@@ -816,30 +730,23 @@ class _HomeScreenState extends State<HomeScreen> {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
-
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 7,
         ),
-
         child: Column(
           mainAxisSize: MainAxisSize.min,
-
           children: [
-
             Container(
               width: 48,
               height: 32,
-
               decoration: BoxDecoration(
                 color: selected
                     ? lightPrimary
                     : Colors.transparent,
-
                 borderRadius: BorderRadius.circular(14),
               ),
-
               child: Icon(
                 icon,
                 color: selected
@@ -858,7 +765,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 fontWeight: selected
                     ? FontWeight.w800
                     : FontWeight.w500,
-
                 color: selected
                     ? primary
                     : secondaryText,

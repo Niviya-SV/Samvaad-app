@@ -261,7 +261,6 @@ class _LessonScreenState extends State<LessonScreen> {
   // ============================================================
   // COMPLETE LESSON
   // ============================================================
-
   Future<void> _completeLesson() async {
     if (_isCompleting) return;
 
@@ -270,61 +269,47 @@ class _LessonScreenState extends State<LessonScreen> {
     });
 
     try {
-      debugPrint('');
-      debugPrint('========================================');
-      debugPrint('STARTING LESSON COMPLETION');
-      debugPrint('========================================');
+      final token = await AppStorage.getToken() ?? '';
 
-      // ========================================================
-      // GET TOKEN
-      // ========================================================
-
-      final token = await _getToken();
-
-      if (token == null || token.isEmpty) {
+      if (token.isEmpty) {
         throw Exception(
           'Login session not found. Please login again.',
         );
       }
 
-      debugPrint('JWT token found successfully.');
+      debugPrint('========================================');
+      debugPrint('STARTING LESSON COMPLETION');
+      debugPrint('========================================');
 
-      // ========================================================
-      // FIND BACKEND LESSON
-      // ========================================================
-
-      final lessonId =
-      await _findBackendLessonId(token);
+      // Get the matching lesson ID from backend
+      final lessonId = await _findBackendLessonId(token);
 
       if (lessonId == null) {
         throw Exception(
-          'This lesson is not available in the backend yet.',
+          'Could not find this lesson in the backend.',
         );
       }
 
-      debugPrint(
-        'Completing backend lesson ID: $lessonId',
-      );
+      debugPrint('Completing lesson ID: $lessonId');
 
-      // ========================================================
-      // CALL BACKEND
-      // ========================================================
-
-      final result =
-      await ApiService.completeLesson(
+      // Complete lesson in backend
+      final result = await ApiService.completeLesson(
         token,
         lessonId,
         score: 100,
       );
 
+      debugPrint('LESSON COMPLETION RESULT: $result');
+
+      // Immediately check updated statistics
+      final statistics = await ApiService.getStatistics(token);
+
+      debugPrint('UPDATED STATISTICS: $statistics');
       debugPrint(
-        'Lesson completion response: $result',
+        'UPDATED STREAK: ${statistics['currentStreak']}',
       );
 
-      // ========================================================
-      // SAVE LOCAL PROGRESS
-      // ========================================================
-
+      // Save local progress
       await AppStorage.saveChapterCompleted(
         widget.level,
         widget.chapterNumber,
@@ -336,19 +321,11 @@ class _LessonScreenState extends State<LessonScreen> {
         1.0,
       );
 
-      debugPrint(
-        'Local chapter progress saved.',
-      );
-
       if (!mounted) return;
 
       setState(() {
         _isCompleting = false;
       });
-
-      // ========================================================
-      // GO TO COMPLETE SCREEN
-      // ========================================================
 
       Navigator.pushReplacement(
         context,
@@ -363,10 +340,9 @@ class _LessonScreenState extends State<LessonScreen> {
         ),
       );
     } catch (e) {
-      debugPrint('');
       debugPrint('========================================');
       debugPrint('LESSON COMPLETION ERROR');
-      debugPrint('$e');
+      debugPrint(e.toString());
       debugPrint('========================================');
 
       if (!mounted) return;
@@ -392,7 +368,6 @@ class _LessonScreenState extends State<LessonScreen> {
       );
     }
   }
-
   // ============================================================
   // BUILD
   // ============================================================

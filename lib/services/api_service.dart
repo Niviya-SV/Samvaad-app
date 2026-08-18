@@ -8,14 +8,13 @@ class ApiService {
   // =========================================================
 
   static String get baseUrl {
-    // Flutter Web / Chrome
+    // Chrome / Edge / Flutter Web
     if (kIsWeb) {
       return 'http://localhost:8080/api';
     }
 
-    // Android Emulator
-    // 10.0.2.2 points to localhost on your computer.
-    return 'http://10.0.2.2:8080/api';
+    // Android Emulator OR Android phone connected using USB + adb reverse
+    return 'http://localhost:8080/api';
   }
 
   // =========================================================
@@ -204,7 +203,8 @@ class ApiService {
       int lessonId, {
         double? score,
       }) async {
-    String url = '$baseUrl/progress/lesson/$lessonId/complete';
+    String url =
+        '$baseUrl/progress/lesson/$lessonId/complete';
 
     if (score != null) {
       url += '?score=$score';
