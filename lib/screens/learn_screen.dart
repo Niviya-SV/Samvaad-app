@@ -1,14 +1,75 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_3d_controller/flutter_3d_controller.dart';
 
+import '../services/api_service.dart';
+import '../services/app_storage.dart';
+
 import 'practice_screen.dart';
 
-class LearnScreen extends StatelessWidget {
+class LearnScreen extends StatefulWidget {
   const LearnScreen({super.key});
 
+  @override
+  State<LearnScreen> createState() => _LearnScreenState();
+}
+
+class _LearnScreenState extends State<LearnScreen> {
   static const Color primary = Color(0xFF6C63A8);
   static const Color darkText = Color(0xFF29263D);
   static const Color secondaryText = Color(0xFF777281);
+
+  int _xp = 0;
+  int _streak = 0;
+  bool _loadingStats = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatistics();
+  }
+
+  Future<void> _loadStatistics() async {
+    try {
+      final token = await AppStorage.getToken();
+
+      if (token == null || token.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _loadingStats = false;
+        });
+        return;
+      }
+
+      final statistics = await ApiService.getStatistics(token);
+
+      final xp = int.tryParse(
+        statistics['xp']?.toString() ?? '0',
+      ) ?? 0;
+
+      final streak = int.tryParse(
+        statistics['currentStreak']?.toString() ?? '0',
+      ) ?? 0;
+
+      if (!mounted) return;
+
+      setState(() {
+        _xp = xp;
+        _streak = streak;
+        _loadingStats = false;
+      });
+
+      debugPrint('LEARN SCREEN XP: $_xp');
+      debugPrint('LEARN SCREEN STREAK: $_streak');
+    } catch (e) {
+      debugPrint('Failed to load Learn statistics: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _loadingStats = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +137,7 @@ class LearnScreen extends StatelessWidget {
                       physics: const BouncingScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 100),
                       child: Column(
-                        children: const [
+                        children: [
                           SizedBox(height: 10),
 
                           Text(
@@ -100,7 +161,9 @@ class LearnScreen extends StatelessWidget {
 
                           SizedBox(height: 30),
 
-                          _LearningPath(),
+                          _LearningPath(
+                            onPracticeCompleted: _loadStatistics,
+                          ),
                         ],
                       ),
                     ),
@@ -176,23 +239,25 @@ class LearnScreen extends StatelessWidget {
                 color: const Color(0xFFDCD6EB),
               ),
             ),
-            child: const Column(
+            child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
+                const Icon(
                   Icons.bolt_rounded,
                   size: 21,
                   color: primary,
                 ),
-                SizedBox(height: 1),
+                const SizedBox(height: 1),
                 Text(
-                  '0',
-                  style: TextStyle(
+                  _loadingStats ? '...' : '$_xp',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     color: darkText,
                   ),
                 ),
-                Text(
+                const Text(
                   'XP',
                   style: TextStyle(
                     fontSize: 9,
@@ -232,6 +297,12 @@ class ISLData {
         'subtitle':
         'Learn the Indian Sign Language sign for Welcome.',
         'model': 'assets/models/welcome.glb',
+      },
+      {
+        'title': 'Please',
+        'subtitle':
+        'Learn the Indian Sign Language sign for Please.',
+        'model': 'assets/models/please.glb',
       },
       {
         'title': 'Sorry',
@@ -317,7 +388,11 @@ class ISLData {
 // ============================================================
 
 class _LearningPath extends StatelessWidget {
-  const _LearningPath();
+  final Future<void> Function()? onPracticeCompleted;
+
+  const _LearningPath({
+    this.onPracticeCompleted,
+  });
 
   void _openChapter(
       BuildContext context,
@@ -333,11 +408,11 @@ class _LearningPath extends StatelessWidget {
     );
   }
 
-  void _openPractice(
+  Future<void> _openPractice(
       BuildContext context,
       String chapter,
-      ) {
-    Navigator.push(
+      ) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PracticeScreen(
@@ -345,6 +420,10 @@ class _LearningPath extends StatelessWidget {
         ),
       ),
     );
+
+    if (onPracticeCompleted != null) {
+      await onPracticeCompleted!();
+    }
   }
 
   @override
@@ -611,38 +690,26 @@ class _ISLLearningScreenState extends State<_ISLLearningScreen> {
       // Keep the avatar centered and at a comfortable distance.
       // The user cannot pinch/rotate/zoom it because enableTouch
       // is disabled below.
-      try {
-        // ==========================================================
-// AVATAR CAMERA / FRAMING
+      // ==========================================================
+// RESTORE AVATAR POSITION
 // ==========================================================
+      try {
+        _controller.resetCameraTarget();
+        _controller.resetCameraOrbit();
 
-        // ==========================================
-// AVATAR CAMERA - CENTERED FULL BODY
-// ==========================================
-// ==========================================
-// AVATAR CAMERA - FINAL FRAMING
-// ==========================================
+        // Keep the avatar centered vertically
+        _controller.setCameraTarget(
+          0.0,
+          1.25,
+          0.0,
+        );
 
-        try {
-          _controller.resetCameraTarget();
-          _controller.resetCameraOrbit();
-
-          // Move the avatar DOWN inside the box
-          _controller.setCameraTarget(
-            0.0,
-            1.25,
-            0.0,
-          );
-
-          // Keep the current good avatar size
-          _controller.setCameraOrbit(
-            0.0,
-            75.0,
-            85.0,
-          );
-        } catch (e) {
-          debugPrint('Camera setup error: $e');
-        }
+        // Increase distance so the FULL avatar is visible
+        _controller.setCameraOrbit(
+          0.0,
+          75.0,
+          75.0,
+        );
       } catch (e) {
         debugPrint('Camera setup error: $e');
       }
@@ -660,7 +727,6 @@ class _ISLLearningScreenState extends State<_ISLLearningScreen> {
       if (animations.isNotEmpty) {
         _controller.playAnimation(
           animationName: animations.first,
-          loopCount: 0,
         );
       } else {
         _controller.playAnimation();
@@ -933,8 +999,7 @@ class _ISLLearningScreenState extends State<_ISLLearningScreen> {
                       src: _currentModel,
                       activeGestureInterceptor: true,
                       enableTouch: false,
-                      progressBarColor:
-                      const Color(0xFF6C63A8),
+                      progressBarColor: const Color(0xFF6C63A8),
                       onProgress: (double progress) {
                         debugPrint(
                           'GLB progress: ${(progress * 100).toStringAsFixed(0)}%',

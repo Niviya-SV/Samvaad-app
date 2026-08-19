@@ -3,7 +3,10 @@
     <!-- Camera permission -->
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <!-- Camera is optional, so app can run on devices without a camera -->
+    <!-- Allow HTTP connections used by the local 3D/GLB viewer -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Camera is optional -->
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
@@ -11,7 +14,8 @@
     <application
         android:label="samvaad"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
 
         <activity
             android:name=".MainActivity"
@@ -28,8 +32,8 @@
                 android:resource="@style/NormalTheme" />
 
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
         </activity>
@@ -41,10 +45,12 @@
     </application>
 
     <queries>
+
         <intent>
-            <action android:name="android.intent.action.PROCESS_TEXT"/>
-            <data android:mimeType="text/plain"/>
+            <action android:name="android.intent.action.PROCESS_TEXT" />
+            <data android:mimeType="text/plain" />
         </intent>
+
     </queries>
 
 </manifest>

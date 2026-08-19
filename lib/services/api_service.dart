@@ -8,13 +8,16 @@ class ApiService {
   // =========================================================
 
   static String get baseUrl {
-    // Chrome / Edge / Flutter Web
     if (kIsWeb) {
       return 'http://localhost:8080/api';
     }
 
-    // Android Emulator OR Android phone connected using USB + adb reverse
-    return 'http://localhost:8080/api';
+    const host = String.fromEnvironment(
+      'API_HOST',
+      defaultValue: '10.92.161.197',
+    );
+
+    return 'http://$host:8080/api';
   }
 
   // =========================================================

@@ -41,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
 
   int _streak = 0;
+  int _xp = 0;
 
   @override
   void initState() {
@@ -62,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final token = await AppStorage.getToken() ?? '';
 
       int streak = 0;
+      int finalXp = 0;
 
       if (token.isNotEmpty) {
         try {
@@ -70,14 +72,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
           streak = int.tryParse(
             statistics['currentStreak']?.toString() ?? '0',
-          ) ??
-              0;
+          ) ?? 0;
 
+          finalXp = int.tryParse(
+            statistics['xp']?.toString() ?? '0',
+          ) ?? 0;
+
+          debugPrint('Current XP: $finalXp');
           debugPrint('Current streak: $streak');
         } catch (e) {
-          debugPrint(
-            'Failed to load statistics: $e',
-          );
+          debugPrint('Failed to load statistics: $e');
         }
       }
 
@@ -96,7 +100,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ? goal
             : (widget.goal ?? '');
 
+        _xp = finalXp;
         _streak = streak;
+
         _isLoading = false;
       });
     } catch (e) {
@@ -287,7 +293,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 28),
 
-              _streakCard(),
+              _statsCard(),
 
               const SizedBox(height: 30),
 
@@ -387,7 +393,146 @@ class _HomeScreenState extends State<HomeScreen> {
   // ============================================================
   // STREAK CARD
   // ============================================================
+  Widget _statsCard() {
+    return Row(
+      children: [
+        // =========================================================
+        // XP CARD
+        // =========================================================
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 18,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: const Color(0xFFE8E4EF),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF4D8),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: const Icon(
+                    Icons.bolt_rounded,
+                    color: Color(0xFFE5A83B),
+                    size: 28,
+                  ),
+                ),
 
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$_xp',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: darkText,
+                        ),
+                      ),
+                      const Text(
+                        'XP',
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: secondaryText,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 12),
+
+        // =========================================================
+        // STREAK CARD
+        // =========================================================
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 18,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: const Color(0xFFE8E4EF),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3E4),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: const Icon(
+                    Icons.local_fire_department_rounded,
+                    color: Color(0xFFFF922B),
+                    size: 28,
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$_streak',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: darkText,
+                        ),
+                      ),
+                      const Text(
+                        'Day Streak',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: secondaryText,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
   Widget _streakCard() {
     return Container(
       width: double.infinity,
