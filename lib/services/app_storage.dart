@@ -656,7 +656,55 @@ class AppStorage {
     analyticsNotifier.value =
     await getAnalytics();
   }
+  // ============================================================
+// LAST LEARNED CHAPTER
+// ============================================================
 
+  static const String _lastLearnedChapterKey =
+      'last_learned_chapter';
+
+// ------------------------------------------------------------
+// SAVE LAST LEARNED CHAPTER
+// ------------------------------------------------------------
+
+  static Future<void> saveLastLearnedChapter(
+      String chapter,
+      ) async {
+    final cleanChapter = chapter.trim();
+
+    if (cleanChapter.isEmpty) {
+      return;
+    }
+
+    await _prefs.setString(
+      _lastLearnedChapterKey,
+      cleanChapter,
+    );
+
+    debugPrint(
+      'Last learned chapter saved: $cleanChapter',
+    );
+  }
+
+// ------------------------------------------------------------
+// GET LAST LEARNED CHAPTER
+// ------------------------------------------------------------
+
+  static Future<String?> getLastLearnedChapter() async {
+    return await _prefs.getString(
+      _lastLearnedChapterKey,
+    );
+  }
+
+// ------------------------------------------------------------
+// CLEAR LAST LEARNED CHAPTER
+// ------------------------------------------------------------
+
+  static Future<void> clearLastLearnedChapter() async {
+    await _prefs.remove(
+      _lastLearnedChapterKey,
+    );
+  }
   // ============================================================
   // CLEAR LEARNING PROGRESS
   // ============================================================

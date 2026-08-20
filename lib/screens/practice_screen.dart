@@ -1,7 +1,5 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
-import '../services/app_storage.dart';
 
 class PracticeScreen extends StatefulWidget {
   final String chapterTitle;
@@ -42,101 +40,43 @@ class _PracticeScreenState extends State<PracticeScreen>
   // SIGNS
   // ============================================================
 
-  List<Map<String, String>> get signs {
-    switch (widget.chapterTitle) {
-      case 'Numbers':
-        return [
-          {
-            'word': 'One',
-            'description':
-            'Perform the Indian Sign Language sign for One.',
-          },
-          {
-            'word': 'Two',
-            'description':
-            'Perform the Indian Sign Language sign for Two.',
-          },
-          {
-            'word': 'Three',
-            'description':
-            'Perform the Indian Sign Language sign for Three.',
-          },
-        ];
-
-      case 'People & Family':
-        return [
-          {
-            'word': 'Mother',
-            'description':
-            'Perform the Indian Sign Language sign for Mother.',
-          },
-          {
-            'word': 'Father',
-            'description':
-            'Perform the Indian Sign Language sign for Father.',
-          },
-          {
-            'word': 'Daughter',
-            'description':
-            'Perform the Indian Sign Language sign for Daughter.',
-          },
-        ];
-
-      case 'Home':
-        return [
-          {
-            'word': 'Bed',
-            'description':
-            'Perform the Indian Sign Language sign for Bed.',
-          },
-          {
-            'word': 'Window',
-            'description':
-            'Perform the Indian Sign Language sign for Window.',
-          },
-        ];
-
-      case 'Greetings':
-      default:
-        return [
-          {
-            'word': 'Hello',
-            'description':
-            'Perform the Indian Sign Language sign for Hello.',
-          },
-          {
-            'word': 'Thank You',
-            'description':
-            'Perform the Indian Sign Language sign for Thank You.',
-          },
-          {
-            'word': 'Welcome',
-            'description':
-            'Perform the Indian Sign Language sign for Welcome.',
-          },
-          {
-            'word': 'Please',
-            'description':
-            'Perform the Indian Sign Language sign for Please.',
-          },
-          {
-            'word': 'Sorry',
-            'description':
-            'Perform the Indian Sign Language sign for Sorry.',
-          },
-          {
-            'word': 'No',
-            'description':
-            'Perform the Indian Sign Language sign for No.',
-          },
-          {
-            'word': 'Bye',
-            'description':
-            'Perform the Indian Sign Language sign for Bye.',
-          },
-        ];
-    }
-  }
+  final List<Map<String, String>> signs = [
+    {
+      'word': 'Hello',
+      'description':
+      'Perform the Indian Sign Language sign for Hello.',
+    },
+    {
+      'word': 'Thank You',
+      'description':
+      'Perform the Indian Sign Language sign for Thank You.',
+    },
+    {
+      'word': 'Welcome',
+      'description':
+      'Perform the Indian Sign Language sign for Welcome.',
+    },
+    {
+      'word': 'Please',
+      'description':
+      'Perform the Indian Sign Language sign for Please.',
+    },
+    {
+      'word': 'Sorry',
+      'description':
+      'Perform the Indian Sign Language sign for Sorry.',
+    },
+    {
+      'word': 'No',
+      'description':
+      'Perform the Indian Sign Language sign for No.',
+    },
+    {
+      'word': 'Bye',
+      'description':
+      'Perform the Indian Sign Language sign for Bye.',
+    },
+  ];
 
   // ============================================================
   // INIT
@@ -358,58 +298,39 @@ class _PracticeScreenState extends State<PracticeScreen>
     });
 
     try {
-      final token = await AppStorage.getToken();
+      /*
+       * ========================================================
+       * YOUR ML API GOES HERE
+       * ========================================================
+       *
+       * Example future flow:
+       *
+       * final result = await ApiService.predictSign(
+       *   _recordedVideo!,
+       *   signs[currentIndex]['word']!,
+       * );
+       *
+       * if (result['correct'] == true) {
+       *   ...
+       * }
+       *
+       * Do NOT fake an AI prediction here.
+       *
+       * For now we only confirm that the video has been
+       * successfully captured and is ready for the ML backend.
+       */
 
-      if (token == null || token.isEmpty) {
-        throw Exception('Please login again.');
-      }
-
-      final response = await ApiService.verifySign(
-        token,
-        _recordedVideo!,
+      await Future.delayed(
+        const Duration(milliseconds: 700),
       );
-
-      debugPrint('========================================');
-      debugPrint('ML VERIFICATION RESULT');
-      debugPrint('EXPECTED: ${signs[currentIndex]['word']}');
-      debugPrint('PREDICTED: ${response['sign']}');
-      debugPrint('CONFIDENCE: ${response['confidence']}');
-      debugPrint('========================================');
 
       if (!mounted) return;
 
-      final String predicted =
-          response['sign']?.toString() ?? 'Unknown';
-
-      final double confidence =
-          double.tryParse(
-            response['confidence']?.toString() ?? '0',
-          ) ??
-              0.0;
-
-      final expected =
-      signs[currentIndex]['word']!.toLowerCase();
-
-      final predictedNormalized =
-      predicted.toLowerCase().replaceAll('_', ' ');
-
-      final expectedNormalized =
-      expected.toLowerCase().replaceAll('_', ' ');
-
-      final bool correct =
-          predictedNormalized == expectedNormalized;
-
       setState(() {
         _checkingSign = false;
-
-        _result = correct ? 'CORRECT' : 'INCORRECT';
-
-        _resultMessage = correct
-            ? 'Correct! AI recognized "$predicted" '
-            'with ${confidence.toStringAsFixed(1)}% confidence.'
-            : 'AI recognized "$predicted" '
-            '(${confidence.toStringAsFixed(1)}% confidence). '
-            'Expected "${signs[currentIndex]['word']}".';
+        _result = 'READY';
+        _resultMessage =
+        'Your video is captured and ready for AI analysis.';
       });
     } catch (e) {
       debugPrint('Sign checking error: $e');
@@ -453,7 +374,7 @@ class _PracticeScreenState extends State<PracticeScreen>
           ),
         ),
       );
-      Navigator.of(context).pop();
+
       return;
     }
 
@@ -524,210 +445,90 @@ class _PracticeScreenState extends State<PracticeScreen>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) {
-        bool submitting = false;
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor:
+          const Color(0xFFFFFBF5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          contentPadding:
+          const EdgeInsets.fromLTRB(
+            24,
+            30,
+            24,
+            20,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE8F5EC),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.emoji_events_rounded,
+                  size: 38,
+                  color: Color(0xFF55B97A),
+                ),
+              ),
 
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: const Color(0xFFFFFBF5),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
+              const SizedBox(height: 20),
+
+              const Text(
+                'Practice Complete!',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF29263D),
+                ),
               ),
-              contentPadding: const EdgeInsets.fromLTRB(
-                24,
-                30,
-                24,
-                20,
+
+              const SizedBox(height: 8),
+
+              Text(
+                'You recorded all ${signs.length} '
+                    'signs in ${widget.chapterTitle}.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 1.5,
+                  color: Color(0xFF777281),
+                ),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFE8F5EC),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.emoji_events_rounded,
-                      size: 38,
-                      color: Color(0xFF55B97A),
+
+              const SizedBox(height: 24),
+
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.pop(context);
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor:
+                    const Color(0xFF6C63A8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                      BorderRadius.circular(15),
                     ),
                   ),
-
-                  const SizedBox(height: 20),
-
-                  const Text(
-                    'Practice Complete!',
-                    textAlign: TextAlign.center,
+                  child: const Text(
+                    'Back to Learning',
                     style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF29263D),
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-
-                  const SizedBox(height: 8),
-
-                  Text(
-                    'You recorded all ${signs.length} '
-                        'signs in ${widget.chapterTitle}.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      height: 1.5,
-                      color: Color(0xFF777281),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: FilledButton(
-                      onPressed: submitting
-                          ? null
-                          : () async {
-                        setDialogState(() {
-                          submitting = true;
-                        });
-
-                        try {
-                          // =====================================
-                          // GET LOGGED-IN USER TOKEN
-                          // =====================================
-
-                          final token =
-                          await AppStorage.getToken();
-
-                          if (token == null || token.isEmpty) {
-                            throw Exception(
-                              'Please login again.',
-                            );
-                          }
-
-                          // =====================================
-                          // FIND LESSON ID
-                          // =====================================
-                          //
-                          // The practice endpoint needs a
-                          // lessonId. We fetch lessons and find
-                          // the current chapter.
-                          // =====================================
-
-                          final lessons =
-                          await ApiService.getLessons(token);
-
-                          int? lessonId;
-
-                          for (final lesson in lessons) {
-                            if (lesson is Map) {
-                              final title =
-                              lesson['title']?.toString();
-
-                              if (title ==
-                                  widget.chapterTitle) {
-                                lessonId = int.tryParse(
-                                  lesson['id']?.toString() ?? '',
-                                );
-                                break;
-                              }
-                            }
-                          }
-
-                          // =====================================
-                          // IF LESSON ID WAS NOT FOUND
-                          // =====================================
-
-                          if (lessonId == null) {
-                            throw Exception(
-                              'Lesson "${widget.chapterTitle}" '
-                                  'was not found.',
-                            );
-                          }
-
-                          // =====================================
-                          // COMPLETE LESSON
-                          // =====================================
-
-                          final result =
-                          await ApiService.completeLesson(
-                            token,
-                            lessonId,
-                          );
-
-                          debugPrint(
-                            'Practice completed: '
-                                '${widget.chapterTitle}',
-                          );
-
-                          debugPrint(
-                            'Completion response: $result',
-                          );
-
-                          if (!mounted) return;
-
-                          // Close completion dialog
-                          Navigator.pop(dialogContext);
-
-                          // Return to Learning screen
-                          Navigator.pop(context);
-
-                        } catch (e) {
-                          debugPrint(
-                            'Practice completion error: $e',
-                          );
-
-                          if (!mounted) return;
-
-                          setDialogState(() {
-                            submitting = false;
-                          });
-
-                          ScaffoldMessenger.of(context)
-                              .showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Could not save progress: $e',
-                              ),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor:
-                        const Color(0xFF6C63A8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                          BorderRadius.circular(15),
-                        ),
-                      ),
-                      child: submitting
-                          ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child:
-                        CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white,
-                        ),
-                      )
-                          : const Text(
-                        'Save Progress & Continue',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            );
-          },
+            ],
+          ),
         );
       },
     );
@@ -1042,27 +843,21 @@ class _PracticeScreenState extends State<PracticeScreen>
           ),
           color:
           const Color(0xFF29263D),
-          onPressed: () async {
+          onPressed: () {
             if (_isRecording) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(
                 const SnackBar(
                   content: Text(
                     'Stop recording before leaving.',
                   ),
                 ),
               );
+
               return;
             }
 
-            // Stop/checking camera before leaving Practice.
-            _checkingSign = false;
-
-            if (!mounted) return;
-
-            // Only pop if Practice was opened on top of another screen.
-            if (Navigator.of(context).canPop()) {
-              await Navigator.of(context).maybePop();
-            }
+            Navigator.pop(context);
           },
         ),
 

@@ -296,7 +296,82 @@ class ApiService {
 
     return _handleResponse(response);
   }
+  // =========================================================
+// NOTIFICATIONS
+// =========================================================
 
+  static Future<List<dynamic>> getNotifications(
+      String token,
+      ) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/notifications'),
+      headers: _authHeaders(token),
+    );
+
+    final data = _handleResponse(response);
+
+    if (data is List) {
+      return data;
+    }
+
+    return [];
+  }
+
+// =========================================================
+// UNREAD NOTIFICATION COUNT
+// =========================================================
+
+  static Future<int> getUnreadNotificationCount(
+      String token,
+      ) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/notifications/unread-count'),
+      headers: _authHeaders(token),
+    );
+
+    final data = _handleResponse(response);
+
+    if (data is int) {
+      return data;
+    }
+
+    return int.tryParse(data.toString()) ?? 0;
+  }
+
+// =========================================================
+// MARK ONE NOTIFICATION AS READ
+// =========================================================
+
+  static Future<Map<String, dynamic>> markNotificationAsRead(
+      String token,
+      int notificationId,
+      ) async {
+    final response = await http.put(
+      Uri.parse(
+        '$baseUrl/notifications/$notificationId/read',
+      ),
+      headers: _authHeaders(token),
+    );
+
+    return Map<String, dynamic>.from(
+      _handleResponse(response),
+    );
+  }
+
+// =========================================================
+// MARK ALL NOTIFICATIONS AS READ
+// =========================================================
+
+  static Future<void> markAllNotificationsAsRead(
+      String token,
+      ) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/notifications/read-all'),
+      headers: _authHeaders(token),
+    );
+
+    _handleResponse(response);
+  }
   // =========================================================
   // AUTH HEADERS
   // =========================================================
