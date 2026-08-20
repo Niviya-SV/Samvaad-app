@@ -74,7 +74,6 @@ class AppStorage {
   static Future<String?> getToken() async {
     final token =
     await _prefs.getString(_tokenKey);
-
     debugPrint(
       '========================================',
     );

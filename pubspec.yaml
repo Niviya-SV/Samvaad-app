@@ -18,6 +18,7 @@ dependencies:
   permission_handler: ^11.3.1
 
   flutter_3d_controller: ^2.3.0
+  camera_windows: ^0.2.6+4
 
   flutter_inappwebview: ^6.1.5
 

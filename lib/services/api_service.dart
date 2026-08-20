@@ -1,12 +1,52 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-
+import 'package:camera/camera.dart';
 class ApiService {
   // =========================================================
   // BASE URL
   // =========================================================
+  static Future<Map<String, dynamic>> verifySign(
+      String token,
+      XFile video,
+      ) async {
+    final request = http.MultipartRequest(
+      'POST',
+        Uri.parse('$baseUrl/ml/verify'),
+    );
 
+    request.headers['Authorization'] = 'Bearer $token';
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'video',
+        video.path,
+      ),
+    );
+
+    final streamedResponse = await request.send();
+
+    final response =
+    await http.Response.fromStream(streamedResponse);
+
+    debugPrint(
+      'ML HTTP STATUS: ${response.statusCode}',
+    );
+
+    debugPrint(
+      'ML RESPONSE: ${response.body}',
+    );
+
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300) {
+      throw Exception(
+        'ML backend returned ${response.statusCode}',
+      );
+    }
+
+    return jsonDecode(response.body)
+    as Map<String, dynamic>;
+  }
   static String get baseUrl {
     if (kIsWeb) {
       return 'http://localhost:8080/api';
